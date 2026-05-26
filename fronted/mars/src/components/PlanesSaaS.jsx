@@ -32,7 +32,7 @@ export function PlanesSaaS({ open, onClose }) {
           ✖
         </button>
         
-        <h2 style={{ textAlign: 'center', color: '#ff4500', marginBottom: '5px' }}>Planes SaaS M.Y.C.O.</h2>
+        <h2 style={{ textAlign: 'center', color: '#ff4500', marginBottom: '5px' }}>Planes M.Y.C.O.</h2>
         <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '30px' }}>
           Soluciones modulares para cooperativas agrícolas y agencias espaciales internacionales.
         </p>
