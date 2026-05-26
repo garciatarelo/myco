@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Circle, CircleMarker, Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, CircleMarker, Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import { apiService } from '../services/api';
+import * as turf from '@turf/turf';
 
 const MAP_CONFIG = {
   mars: {
@@ -10,14 +11,10 @@ const MAP_CONFIG = {
     title: 'Mars - Jezero Crater',
     center: [-4.6, 137.4],
     zoom: 6,
-    tileUrl:
-      'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
+    tileUrl: 'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
     attribution: 'NASA Trek - Mars Viking MDIM21',
     crs: L.CRS.EPSG4326,
-    bounds: [
-      [-90, -180],
-      [90, 180],
-    ],
+    bounds: [[-90, -180], [90, 180]],
     noWrap: true,
     minZoom: 1,
     maxZoom: 7,
@@ -28,14 +25,11 @@ const MAP_CONFIG = {
     label: 'Tierra (Chihuahua)',
     title: 'Tierra - Chihuahua, Mexico',
     center: [28.6353, -106.0889],
-    zoom: 9,
+    zoom: 13,
     tileUrl: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Esri World Imagery',
     crs: L.CRS.EPSG3857,
-    bounds: [
-      [25.50, -109.10], // Suroeste de Chihuahua
-      [31.80, -103.20], // Noreste de Chihuahua
-    ],
+    bounds: [[25.50, -109.10], [31.80, -103.20]],
     noWrap: true,
     minZoom: 6,
     maxZoom: 18,
@@ -65,7 +59,45 @@ export function MapaMarte({
   const [animPos, setAnimPos] = useState(null);
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [routeActionError, setRouteActionError] = useState('');
+  const [micelioPoints, setMicelioPoints] = useState([]);
+  
   const animRef = useRef({ intervalId: null, idx: 0, positions: [] });
+
+  const polygonCoordsTurf = [
+    [
+      [-106.095, 28.632],
+      [-106.082, 28.632],
+      [-106.082, 28.642],
+      [-106.095, 28.642],
+      [-106.095, 28.632]
+    ]
+  ];
+
+  const polygonCoordsLeaflet = polygonCoordsTurf[0].map(coord => [coord[1], coord[0]]);
+
+  useEffect(() => {
+    if (activeMap === 'earth') {
+      const polygon = turf.polygon(polygonCoordsTurf);
+      const bbox = turf.bbox(polygon);
+      let validPoints = [];
+      let attempts = 0;
+      const totalCapsulas = 54;
+
+      while (validPoints.length < totalCapsulas && attempts < 500) {
+        const randomPt = turf.randomPoint(1, { bbox: bbox });
+        if (turf.booleanPointInPolygon(randomPt.features[0], polygon)) {
+          validPoints.push([
+            randomPt.features[0].geometry.coordinates[1],
+            randomPt.features[0].geometry.coordinates[0]
+          ]);
+        }
+        attempts++;
+      }
+      setMicelioPoints(validPoints);
+    } else {
+      setMicelioPoints([]);
+    }
+  }, [activeMap]);
 
   useEffect(() => {
     if (onRouteSelected) {
@@ -80,7 +112,6 @@ export function MapaMarte({
     if (!generatedRoute || !Array.isArray(generatedRoute.puntos_json)) {
       return [];
     }
-
     return generatedRoute.puntos_json
       .filter((p) => p && p.lat !== undefined && p.lon !== undefined)
       .map((p) => [Number(p.lat), Number(p.lon)])
@@ -91,48 +122,35 @@ export function MapaMarte({
     if (generatedRoutePoints.length === 0 || biopolimeros.length === 0) {
       return [];
     }
-
     const threshold = 0.02;
     const matches = [];
-
     generatedRoutePoints.forEach((point, index) => {
       const matchingBio = biopolimeros.find((bio) => {
         if (typeof bio.latitud_marte !== 'number' || typeof bio.longitud_marte !== 'number') {
           return false;
         }
-
         const latDiff = Math.abs(point[0] - Number(bio.latitud_marte));
         const lonDiff = Math.abs(point[1] - Number(bio.longitud_marte));
         return latDiff <= threshold && lonDiff <= threshold;
       });
-
       if (matchingBio) {
-        matches.push({
-          point,
-          index,
-          bio: matchingBio,
-        });
+        matches.push({ point, index, bio: matchingBio });
       }
     });
-
     return matches;
   }, [generatedRoutePoints, biopolimeros]);
 
   function RouteAutoFocus({ points }) {
     const map = useMap();
-
     useEffect(() => {
       if (!points || points.length === 0) return;
-
       if (points.length === 1) {
         map.setView(points[0], Math.max(map.getZoom(), 9), { animate: true });
         return;
       }
-
       const bounds = L.latLngBounds(points);
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: activeMap === 'mars' ? 10 : 15, animate: true });
     }, [map, points]);
-
     return null;
   }
 
@@ -144,23 +162,14 @@ export function MapaMarte({
               .map((p) => [Number(p?.lat), Number(p?.lon)])
               .filter((p) => !isNaN(p[0]) && !isNaN(p[1]))
           : [];
-
         if (puntos.length < 2) {
           return null;
         }
-
-        // Inferir si la ruta es de la Tierra (Chihuahua) basado en el primer punto
         const firstPoint = puntos[0];
         const isEarth = firstPoint[0] >= 25 && firstPoint[0] <= 32 && firstPoint[1] >= -110 && firstPoint[1] <= -100;
-        
         if (activeMap === 'earth' && !isEarth) return null;
         if (activeMap === 'mars' && isEarth) return null;
-
-        return {
-          id: ruta.id,
-          estado: ruta.estado,
-          puntos,
-        };
+        return { id: ruta.id, estado: ruta.estado, puntos };
       })
       .filter(Boolean);
   }, [rutas, activeMap]);
@@ -179,7 +188,6 @@ export function MapaMarte({
       if (activeMap === 'mars' && isEarth) return false;
       return true;
     });
-
     return filtered.map((robot, idx) => {
       if (idx === 0) {
         return {
@@ -219,7 +227,6 @@ export function MapaMarte({
     return () => clearInterval(interval);
   }, []);
 
-  // React to a newly generated route: show polyline and prepare animation
   useEffect(() => {
     if (!generatedRoute || !Array.isArray(generatedRoute.puntos_json)) return;
     const pts = generatedRoute.puntos_json.map((p) => [p.lat, p.lon]);
@@ -233,25 +240,21 @@ export function MapaMarte({
   async function cargarCapas() {
     try {
       setMapError('');
-
       const [robotsData, rutasData, biopolimerosData, zonasData] = await Promise.all([
         apiService.getRobots(),
         apiService.getRutas(),
         apiService.getBiopolimeros(),
         apiService.getZonasToxicas(),
       ]);
-
       setRobots(Array.isArray(robotsData) ? robotsData : []);
       setRutas(Array.isArray(rutasData) ? rutasData : []);
       setBiopolimeros(Array.isArray(biopolimerosData) ? biopolimerosData : []);
       setZonasToxicas(Array.isArray(zonasData) ? zonasData : []);
       setLastUpdate(new Date().toLocaleTimeString());
-
       if (activeMap === 'mars') {
         const firstRobot = (Array.isArray(robotsData) ? robotsData : []).find(
           (r) => typeof r.latitud_marte === 'number' && typeof r.longitud_marte === 'number'
         );
-
         if (firstRobot) {
           setManualCenter([firstRobot.latitud_marte, firstRobot.longitud_marte]);
         }
@@ -286,7 +289,6 @@ export function MapaMarte({
     setManualCenter(route.puntos[0]);
   }
 
-  // Effect to reload when external refresh token changes
   useEffect(() => {
     if (refreshToken > 0) cargarCapas();
   }, [refreshToken]);
@@ -298,10 +300,9 @@ export function MapaMarte({
     });
   }, [zonasToxicas, activeMap]);
 
-  // Network lines calculation for biopolymers
   const redBiologica = useMemo(() => {
     const lines = [];
-    const maxDist = 0.5; // Umbral de conexion en grados
+    const maxDist = 0.5;
     for (let i = 0; i < capasBiopolimeros.length; i++) {
       for (let j = i + 1; j < capasBiopolimeros.length; j++) {
         const b1 = capasBiopolimeros[i];
@@ -320,17 +321,14 @@ export function MapaMarte({
   async function deleteRoute(routeId) {
     const confirmDelete = window.confirm(`Eliminar la ruta #${routeId}? Esta acción no se puede deshacer.`);
     if (!confirmDelete) return;
-
     try {
       setRouteActionError('');
       await apiService.eliminarRuta(routeId);
       setRutas((prev) => prev.filter((ruta) => ruta.id !== routeId));
-
       if (selectedRouteId === routeId) {
         setSelectedRouteId(null);
         setManualCenter(null);
       }
-
       if (generatedRoute && generatedRoute.id === routeId) {
         onRouteCompleted && onRouteCompleted(generatedRoute);
       }
@@ -343,7 +341,6 @@ export function MapaMarte({
   return (
     <div className="mars-map-wrap">
       <div className="panel-header">
-        {/* Title removed: sidebar already shows active map */}
         <div className="map-actions">
           {generatedRoute && (
             <div style={{ marginLeft: 12 }}>
@@ -355,7 +352,6 @@ export function MapaMarte({
                   } catch (e) {
                     console.warn('No se pudo iniciar ruta en backend', e);
                   }
-
                   if (!animRef.current.positions || animRef.current.positions.length === 0) return;
                   if (animRef.current.intervalId) clearInterval(animRef.current.intervalId);
                   animRef.current.idx = 0;
@@ -409,28 +405,39 @@ export function MapaMarte({
             maxNativeZoom={config.maxNativeZoom}
           />
 
+          {activeMap === 'earth' && (
+            <>
+              <Polygon 
+                positions={polygonCoordsLeaflet} 
+                pathOptions={{ color: '#5af7cf', fillColor: '#5af7cf', fillOpacity: 0.1, weight: 2, dashArray: '5 5' }} 
+              />
+              {micelioPoints.map((pt, i) => (
+                <CircleMarker 
+                  key={`micelio-sim-${i}`} 
+                  center={pt} 
+                  radius={4} 
+                  pathOptions={{ color: '#020305', fillColor: '#5af7cf', fillOpacity: 1, weight: 1 }}
+                >
+                  <Tooltip>Cápsula de Micelio #{i + 1}</Tooltip>
+                </CircleMarker>
+              ))}
+            </>
+          )}
+
           {visibleGeneratedRoute && <RouteAutoFocus points={generatedRoutePoints} />}
 
           <>
-            {/* Zonas Toxicas */}
             {activeZonas.map(zona => (
               <Circle
                 key={`zona-${zona.id}`}
                 center={[zona.latitud, zona.longitud]}
-                radius={zona.radio * 111000} // Aprox km a metros si el radio esta en grados (1 grado ~ 111km)
-                pathOptions={{
-                  color: '#ff3a5d',
-                  fillColor: '#ff0033',
-                  fillOpacity: 0.35,
-                  weight: 2,
-                  dashArray: '10 10'
-                }}
+                radius={zona.radio * 111000}
+                pathOptions={{ color: '#ff3a5d', fillColor: '#ff0033', fillOpacity: 0.35, weight: 2, dashArray: '10 10' }}
               >
                 <Tooltip>Zona Tóxica! Peligro: {zona.nivel_toxicidad}%</Tooltip>
               </Circle>
             ))}
 
-            {/* Red Biologica */}
             {redBiologica.map((linePoints, idx) => (
               <Polyline 
                 key={`red-${idx}`} 
@@ -446,129 +453,101 @@ export function MapaMarte({
               const iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${strokeColor}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`;
               const robotIcon = L.divIcon({ html: iconSvg, className: customClass, iconSize: [28, 28], iconAnchor: [14, 14] });
               return (
-                <Marker
-                    key={`robot-${robot.id}`}
-                    position={[robot.latitud_marte, robot.longitud_marte]}
-                    icon={robotIcon}
-                  >
-                    <Tooltip direction="top" offset={[0, -14]} opacity={1}>
-                      <div className="map-tooltip">
-                        <strong>{robot.nombre}</strong>
-                        <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
-                          Estado: {robot.estado}
-                        </p>
-                        <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
-                          Bateria: {robot.bateria}%
-                        </p>
-                      </div>
-                    </Tooltip>
-                  </Marker>
-                );
-              })}
-
-              {capasRutas.map((ruta, index) => (
-                <Polyline
-                  key={`ruta-${ruta.id}`}
-                  positions={ruta.puntos}
-                  eventHandlers={{ click: () => focusRoute(ruta) }}
-                  pathOptions={{
-                    color: colorPorIndice(index, selectedRouteId === ruta.id),
-                    weight: selectedRouteId === ruta.id ? 6 : 4,
-                    opacity: selectedRouteId && selectedRouteId !== ruta.id ? 0.35 : 0.92,
-                    dashArray: ruta.estado === 'planificada' ? '8 8' : undefined,
-                  }}
-                >
-                  <Tooltip sticky>
-                    Ruta #{ruta.id} - {ruta.estado}
+                <Marker key={`robot-${robot.id}`} position={[robot.latitud_marte, robot.longitud_marte]} icon={robotIcon}>
+                  <Tooltip direction="top" offset={[0, -14]} opacity={1}>
+                    <div className="map-tooltip">
+                      <strong>{robot.nombre}</strong>
+                      <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
+                        Estado: {robot.estado}
+                      </p>
+                      <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
+                        Bateria: {robot.bateria}%
+                      </p>
+                    </div>
                   </Tooltip>
-                </Polyline>
-              ))}
+                </Marker>
+              );
+            })}
 
-              {capasBiopolimeros.map((bio) => {
-                return (
-                  <CircleMarker
-                    key={`bio-${bio.id}`}
-                    center={[bio.latitud_marte, bio.longitud_marte]}
-                    radius={5}
-                    pathOptions={{
-                      color: '#e2d5c4',
-                      fillColor: '#e2d5c4',
-                      fillOpacity: 0.65,
-                      weight: 1,
-                    }}
-                  >
-                    <Tooltip>
-                      Biopolímero #{bio.id} - crecimiento {bio.nivel_crecimiento}%
-                    </Tooltip>
-                  </CircleMarker>
-                );
-              })}
+            {capasRutas.map((ruta, index) => (
+              <Polyline
+                key={`ruta-${ruta.id}`}
+                positions={ruta.puntos}
+                eventHandlers={{ click: () => focusRoute(ruta) }}
+                pathOptions={{
+                  color: colorPorIndice(index, selectedRouteId === ruta.id),
+                  weight: selectedRouteId === ruta.id ? 6 : 4,
+                  opacity: selectedRouteId && selectedRouteId !== ruta.id ? 0.35 : 0.92,
+                  dashArray: ruta.estado === 'planificada' ? '8 8' : undefined,
+                }}
+              >
+                <Tooltip sticky>Ruta #{ruta.id} - {ruta.estado}</Tooltip>
+              </Polyline>
+            ))}
 
-              {/* Generated route preview and animated marker */}
-              {visibleGeneratedRoute && (
-                <>
-                  <Polyline
-                    key={`generated-ruta-${generatedRoute.id}`}
-                    positions={generatedRoutePoints}
-                    pathOptions={{ color: colorRutaGenerada(), weight: 4, dashArray: routeStatus === 'completada' ? undefined : '6 6', opacity: 0.95 }}
-                  />
+            {capasBiopolimeros.map((bio) => {
+              return (
+                <CircleMarker
+                  key={`bio-${bio.id}`}
+                  center={[bio.latitud_marte, bio.longitud_marte]}
+                  radius={5}
+                  pathOptions={{ color: '#e2d5c4', fillColor: '#e2d5c4', fillOpacity: 0.65, weight: 1 }}
+                >
+                  <Tooltip>Biopolímero #{bio.id} - crecimiento {bio.nivel_crecimiento}%</Tooltip>
+                </CircleMarker>
+              );
+            })}
 
-                  {generatedRoutePoints.map((point, index) => {
-                    const isStart = index === 0;
-                    const isEnd = index === generatedRoutePoints.length - 1;
-                    return (
-                      <CircleMarker
-                        key={`generated-point-${index}`}
-                        center={point}
-                        radius={isStart || isEnd ? 6 : 3}
-                        pathOptions={{
-                          color: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
-                          fillColor: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
-                          fillOpacity: 0.95,
-                          weight: 1,
-                        }}
-                      >
-                        <Tooltip>
-                          {isStart ? 'Inicio de ruta' : isEnd ? 'Fin de ruta' : `Punto de ruta ${index + 1}`}
-                        </Tooltip>
-                      </CircleMarker>
-                    );
-                  })}
-
-                  {interactionPoints.map(({ point, index, bio }) => (
+            {visibleGeneratedRoute && (
+              <>
+                <Polyline
+                  key={`generated-ruta-${generatedRoute.id}`}
+                  positions={generatedRoutePoints}
+                  pathOptions={{ color: colorRutaGenerada(), weight: 4, dashArray: routeStatus === 'completada' ? undefined : '6 6', opacity: 0.95 }}
+                />
+                {generatedRoutePoints.map((point, index) => {
+                  const isStart = index === 0;
+                  const isEnd = index === generatedRoutePoints.length - 1;
+                  return (
                     <CircleMarker
-                      key={`interaction-${bio.id}-${index}`}
+                      key={`generated-point-${index}`}
                       center={point}
-                      radius={8}
+                      radius={isStart || isEnd ? 6 : 3}
                       pathOptions={{
-                        color: '#ffc107',
-                        fillColor: '#ffc107',
-                        fillOpacity: 0.9,
-                        weight: 2,
+                        color: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
+                        fillColor: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
+                        fillOpacity: 0.95,
+                        weight: 1,
                       }}
                     >
-                      <Tooltip>
-                        Interacción robot-biopolímero #{bio.id} en punto {index + 1}
-                      </Tooltip>
+                      <Tooltip>{isStart ? 'Inicio de ruta' : isEnd ? 'Fin de ruta' : `Punto de ruta ${index + 1}`}</Tooltip>
                     </CircleMarker>
-                  ))}
-
-                  {animPos && (
-                    <Marker
-                      position={animPos}
-                      icon={L.divIcon({
-                        html: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorRutaGenerada()}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${colorRutaGenerada()}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`,
-                        className: 'custom-robot-icon-anim',
-                        iconSize: [34, 34],
-                        iconAnchor: [17, 17]
-                      })}
-                    />
-                  )}
-                </>
-              )}
+                  );
+                })}
+                {interactionPoints.map(({ point, index, bio }) => (
+                  <CircleMarker
+                    key={`interaction-${bio.id}-${index}`}
+                    center={point}
+                    radius={8}
+                    pathOptions={{ color: '#ffc107', fillColor: '#ffc107', fillOpacity: 0.9, weight: 2 }}
+                  >
+                    <Tooltip>Interacción robot-biopolímero #{bio.id} en punto {index + 1}</Tooltip>
+                  </CircleMarker>
+                ))}
+                {animPos && (
+                  <Marker
+                    position={animPos}
+                    icon={L.divIcon({
+                      html: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorRutaGenerada()}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${colorRutaGenerada()}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`,
+                      className: 'custom-robot-icon-anim',
+                      iconSize: [34, 34],
+                      iconAnchor: [17, 17]
+                    })}
+                  />
+                )}
+              </>
+            )}
           </>
-
-          {/* Removed static Chihuahua marker and radius circle per request */}
         </MapContainer>
 
         <div className="map-overlay-info">
@@ -597,7 +576,6 @@ export function MapaMarte({
               Ver todas
             </button>
           </div>
-
           <div className="route-selector-list">
             {capasRutas.map((ruta, index) => {
               const isSelected = selectedRouteId === ruta.id;
@@ -613,7 +591,6 @@ export function MapaMarte({
                     <span>{ruta.estado}</span>
                     <span>{ruta.puntos.length} pts</span>
                   </button>
-
                   <button
                     type="button"
                     className="btn-soft small ghost"

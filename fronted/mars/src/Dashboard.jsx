@@ -2,34 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapaMarte } from './components/MapaMarte';
 import { GenerateRutaModal } from './components/GenerateRutaModal';
 import { CreateRobotModal } from './components/CreateRobotModal';
+import { EstadisticasPanel } from './components/EstadisticasPanel';
 import teamLogo from './assets/logo.ico';
 
 function Dashboard() {
-  // ── mapa / ruta ───────────────────────────────────────────────────────────
-  const [modalOpen,          setModalOpen]          = useState(false);
-  const [robotModalOpen,     setRobotModalOpen]     = useState(false);
-  const [generatedRoute,     setGeneratedRoute]     = useState(null);
-  const [routeStatus,        setRouteStatus]        = useState('idle');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [robotModalOpen, setRobotModalOpen] = useState(false);
+  const [generatedRoute, setGeneratedRoute] = useState(null);
+  const [routeStatus, setRouteStatus] = useState('idle');
   const [robotsRefreshToken, setRobotsRefreshToken] = useState(0);
-  const [activeMap,          setActiveMap]          = useState('mars');
+  const [activeMap, setActiveMap] = useState('mars');
 
-  // ── flujo de análisis ─────────────────────────────────────────────────────
-  const [terrainAnalyzed,   setTerrainAnalyzed]   = useState(false);
-  const [analyzing,         setAnalyzing]         = useState(false);
-  const [analysisProgress,  setAnalysisProgress]  = useState(0);
-  const [analysisPhase,     setAnalysisPhase]     = useState('');
+  const [terrainAnalyzed, setTerrainAnalyzed] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const [analysisPhase, setAnalysisPhase] = useState('');
 
-  // ── sensores / failsafe ───────────────────────────────────────────────────
-  const [batteryLevel,   setBatteryLevel]   = useState(85);
-  const [arsenicLevel,   setArsenicLevel]   = useState(15);
-  const [phLevel,        setPhLevel]        = useState(6.8);
-  const [valveOpen,      setValveOpen]      = useState(true);
+  const [batteryLevel, setBatteryLevel] = useState(85);
+  const [arsenicLevel, setArsenicLevel] = useState(15);
+  const [phLevel, setPhLevel] = useState(6.8);
+  const [valveOpen, setValveOpen] = useState(true);
   const [failsafeStatus, setFailsafeStatus] = useState('NORMAL');
-  const [isCharging,     setIsCharging]     = useState(false);
+  const [isCharging, setIsCharging] = useState(false);
   const chargeRef = useRef(null);
 
-  // ── clima ─────────────────────────────────────────────────────────────────
-  const [clima, setClima] = useState(null); // null = sin datos todavía
+  const [clima, setClima] = useState(null);
+  
+  const [area, setArea] = useState(500);
 
   const fetchClima = async () => {
     if (activeMap === 'earth') {
@@ -40,9 +39,9 @@ function Dashboard() {
         if (!res.ok) throw new Error();
         const d = await res.json();
         setClima({
-          temp:   d.main.temp,
-          hum:    d.main.humidity,
-          pres:   d.main.pressure,
+          temp: d.main.temp,
+          hum: d.main.humidity,
+          pres: d.main.pressure,
           viento: +(d.wind.speed * 3.6).toFixed(1),
           precip: d.rain ? (d.rain['1h'] ?? 0) : 0,
           status: d.weather[0].description,
@@ -55,7 +54,6 @@ function Dashboard() {
     }
   };
 
-  // reset al cambiar de mapa
   useEffect(() => {
     setTerrainAnalyzed(false);
     setClima(null);
@@ -63,7 +61,6 @@ function Dashboard() {
     setRouteStatus('idle');
   }, [activeMap]);
 
-  // ── análisis de terreno (botón principal) ─────────────────────────────────
   const handleAnalyze = async () => {
     setAnalyzing(true);
     setAnalysisProgress(0);
@@ -78,7 +75,6 @@ function Dashboard() {
       'Trazando ruta óptima...',
     ];
 
-    // Simulación de progreso por fases
     for (let i = 0; i < phases.length; i++) {
       setAnalysisPhase(phases[i]);
       const target = Math.round(((i + 1) / phases.length) * 90);
@@ -92,7 +88,6 @@ function Dashboard() {
       });
     }
 
-    // Llamada real al backend + clima
     try {
       await fetchClima();
       const { apiService } = await import('./services/api');
@@ -102,7 +97,7 @@ function Dashboard() {
         setRouteStatus('planificada');
       }
       setRobotsRefreshToken(v => v + 1);
-    } catch { /* usamos datos simulados si falla */ }
+    } catch {}
 
     setAnalysisPhase('Análisis completado');
     setAnalysisProgress(100);
@@ -111,7 +106,6 @@ function Dashboard() {
     setTerrainAnalyzed(true);
   };
 
-  // ── consola home-seeking ──────────────────────────────────────────────────
   const [logs, setLogs] = useState([
     '[SYS]   Sistema M.Y.C.O. iniciado.',
     '[SYS]   Válvula de micelio activa.',
@@ -127,7 +121,6 @@ function Dashboard() {
       consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
   }, [logs]);
 
-  // ── auto-carga cuando batería ≤ 20 % ─────────────────────────────────────
   const startAutoCharge = () => {
     if (chargeRef.current) return;
     addLog([
@@ -166,10 +159,8 @@ function Dashboard() {
 
   useEffect(() => () => { if (chargeRef.current) clearInterval(chargeRef.current); }, []);
 
-  // ── colores batería ───────────────────────────────────────────────────────
   const battColor = batteryLevel < 20 ? '#ff7070' : batteryLevel < 40 ? '#ffc107' : '#5af7cf';
 
-  // ── estilos compartidos ───────────────────────────────────────────────────
   const card = {
     background: 'rgba(255,255,255,0.025)',
     border: '1px solid var(--line)',
@@ -195,11 +186,7 @@ function Dashboard() {
         height: '100%',
       }}>
 
-        {/* ═══════════════════════════════════
-            COLUMNA 1 — SIDEBAR
-        ═══════════════════════════════════ */}
         <aside className="panel" style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'14px', overflow:'hidden' }}>
-          {/* Logo */}
           <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
             <div style={{ width:40, height:40, borderRadius:'50%', border:'2px solid #ff4500', flexShrink:0, overflow:'hidden' }}>
               <img src={teamLogo} alt="M.Y.C.O" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
@@ -209,7 +196,6 @@ function Dashboard() {
 
           <div style={{ borderTop:'1px solid var(--line)' }} />
 
-          {/* Mapa */}
           <div>
             <span style={lbl}>Vista del mapa</span>
             <div style={{ display:'flex', gap:'4px', marginTop:'4px' }}>
@@ -227,7 +213,6 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Estado rover */}
           <div style={{ ...card, display:'flex', flexDirection:'column', gap:'7px' }}>
             <span style={lbl}>Rover-01</span>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem' }}>
@@ -254,7 +239,6 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* Instrucciones */}
           {!terrainAnalyzed && !analyzing && (
             <div style={{ fontSize:'0.7rem', color:'var(--muted)', lineHeight:1.7,
               background:'rgba(255,255,255,0.02)', border:'1px solid var(--line)',
@@ -264,7 +248,6 @@ function Dashboard() {
             </div>
           )}
 
-          {/* Botones */}
           <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginTop:'auto' }}>
             <button
               onClick={handleAnalyze}
@@ -287,7 +270,6 @@ function Dashboard() {
             </button>
           </div>
 
-          {/* Pie */}
           <div style={{ borderTop:'1px solid var(--line)', paddingTop:'10px', fontSize:'0.63rem', color:'var(--muted)' }}>
             <div style={{ display:'flex', justifyContent:'space-between' }}>
               <span>Conexión</span><strong style={{ color:'#5af7cf' }}>Activa</strong>
@@ -295,11 +277,7 @@ function Dashboard() {
           </div>
         </aside>
 
-        {/* ═══════════════════════════════════
-            COLUMNA 2 — MAPA
-        ═══════════════════════════════════ */}
         <div className="panel" style={{ padding:'10px', display:'flex', flexDirection:'column', gap:'8px', overflow:'hidden' }}>
-          {/* Header */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
             <div>
               <p style={{ margin:0, fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'1px', color:'var(--muted)' }}>Gemelo Digital</p>
@@ -315,7 +293,6 @@ function Dashboard() {
             )}
           </div>
 
-          {/* Barra de progreso del análisis */}
           {analyzing && (
             <div style={{ flexShrink:0, background:'rgba(255,69,0,0.05)', border:'1px solid rgba(255,69,0,0.2)',
               borderRadius:'8px', padding:'10px 14px' }}>
@@ -333,7 +310,6 @@ function Dashboard() {
             </div>
           )}
 
-          {/* Mapa */}
           <div style={{ flex:1, borderRadius:'8px', overflow:'hidden', border:'1px solid var(--line)', minHeight:0 }}>
             <MapaMarte
               activeMap={activeMap}
@@ -349,22 +325,15 @@ function Dashboard() {
           </div>
         </div>
 
-        {/* ═══════════════════════════════════
-            COLUMNA 3 — DATOS
-        ═══════════════════════════════════ */}
-        <div style={{ display:'flex', flexDirection:'column', gap:'8px', overflow:'hidden', minHeight:0 }}>
-
-          {/* ─ Clima ─ */}
-          <div className="panel" style={{ padding:'14px', flex:'1.6', display:'flex', flexDirection:'column', overflow:'hidden', minHeight:0 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:'8px', overflowY:'auto', paddingRight:'4px' }}>
+          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column' }}>
             <span style={{ ...lbl, marginBottom:'10px' }}>Clima</span>
-
             {!terrainAnalyzed ? (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center',
-                color:'var(--muted)', fontSize:'0.72rem' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.72rem', padding:'20px 0' }}>
                 Sin terreno analizado
               </div>
             ) : (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'7px', flex:1 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'7px' }}>
                 {[
                   { l:'Temperatura', v:`${clima?.temp?.toFixed(1) ?? '—'} °C`,     c: (clima?.temp??0)>0?'#ff8a2b':'#47d6ff' },
                   { l:'Humedad',     v:`${clima?.hum ?? '—'}%`,                    c:'#5af7cf' },
@@ -382,18 +351,14 @@ function Dashboard() {
             )}
           </div>
 
-          {/* ─ Suelo ─ */}
-          <div className="panel" style={{ padding:'14px', flex:'2', display:'flex', flexDirection:'column', minHeight:0 }}>
+          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column' }}>
             <span style={{ ...lbl, marginBottom:'12px' }}>Suelo</span>
-
             {!terrainAnalyzed ? (
-              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center',
-                color:'var(--muted)', fontSize:'0.72rem', textAlign:'center' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.72rem', textAlign:'center', padding:'20px 0' }}>
                 Sin terreno analizado
               </div>
             ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:'14px', flex:1 }}>
-                {/* pH */}
+              <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
                 <div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem', marginBottom:'5px' }}>
                     <span style={{ color:'var(--muted)' }}>Acidez (pH)</span>
@@ -407,7 +372,6 @@ function Dashboard() {
                   </span>
                 </div>
 
-                {/* Arsénico */}
                 <div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem', marginBottom:'5px' }}>
                     <span style={{ color:'var(--muted)' }}>Arsénico</span>
@@ -421,7 +385,6 @@ function Dashboard() {
                   </span>
                 </div>
 
-                {/* Humedad */}
                 <div>
                   <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem', marginBottom:'5px' }}>
                     <span style={{ color:'var(--muted)' }}>Humedad del suelo</span>
@@ -436,9 +399,15 @@ function Dashboard() {
             )}
           </div>
 
-          {/* ─ Rover ─ */}
-          <div className="panel" style={{ padding:'14px', flex:'2.5', display:'flex', flexDirection:'column', gap:'10px', overflow:'hidden', minHeight:0 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          {terrainAnalyzed && (
+            <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column' }}>
+              <span style={{ ...lbl, marginBottom:'12px' }}>Datos de Remediación</span>
+              <EstadisticasPanel activeMap={activeMap} arsenicLevel={arsenicLevel} area={area} />
+            </div>
+          )}
+
+          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', gap:'10px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <span style={lbl}>Rover</span>
               <span style={{ fontSize:'0.63rem', fontWeight:'700', padding:'2px 8px', borderRadius:'4px',
                 background: isCharging ? 'rgba(255,193,7,0.12)' : failsafeStatus==='ACTIVE' ? 'rgba(255,112,112,0.12)' : 'rgba(74,235,183,0.08)',
@@ -450,8 +419,7 @@ function Dashboard() {
               </span>
             </div>
 
-            {/* Slider batería */}
-            <div style={{ flexShrink:0 }}>
+            <div>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem', marginBottom:'5px' }}>
                 <span style={{ color:'var(--muted)' }}>Batería</span>
                 <strong style={{ color: battColor }}>{batteryLevel}%{isCharging ? ' ↑' : ''}</strong>
@@ -466,11 +434,10 @@ function Dashboard() {
               </span>
             </div>
 
-            {/* Consola */}
             <div ref={consoleRef} style={{
-              flex:1, background:'#020305', border:'1px solid #141b27', borderRadius:'7px',
+              background:'#020305', border:'1px solid #141b27', borderRadius:'7px',
               padding:'8px 10px', fontFamily:'monospace', fontSize:'0.62rem',
-              overflowY:'auto', display:'flex', flexDirection:'column', gap:'3px', minHeight:0,
+              overflowY:'auto', display:'flex', flexDirection:'column', gap:'3px', height:'120px',
             }}>
               <div style={{ color:'#2a3a4e', borderBottom:'1px solid #141b27', paddingBottom:'4px', marginBottom:'2px', fontSize:'0.58rem' }}>
                 CONSOLA — ROVER-01
@@ -488,7 +455,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Modales */}
       <GenerateRutaModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
