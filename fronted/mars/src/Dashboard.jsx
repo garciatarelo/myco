@@ -4,6 +4,8 @@ import { GenerateRutaModal } from './components/GenerateRutaModal';
 import { CreateRobotModal } from './components/CreateRobotModal';
 import { EstadisticasPanel } from './components/EstadisticasPanel';
 import teamLogo from './assets/logo.ico';
+import { PlanesSaaS } from './components/PlanesSaaS';
+  import { Cotizador } from './components/Cotizador';
 
 function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -28,7 +30,24 @@ function Dashboard() {
 
   const [clima, setClima] = useState(null);
   
-  const [area, setArea] = useState(500);
+  const [area, setArea] = useState(0);
+  const [polygonCoords, setPolygonCoords] = useState(null);
+
+  const [saasModalOpen, setSaasModalOpen] = useState(false);
+
+  <MapaMarte
+    activeMap={activeMap}
+    setActiveMap={setActiveMap}
+    generatedRoute={generatedRoute}
+    routeStatus={routeStatus}
+    onRouteCompleted={() => setRouteStatus('completada')}
+    onRouteSelected={() => {}}
+    refreshToken={robotsRefreshToken}
+    batteryLevel={batteryLevel}
+    failsafeStatus={failsafeStatus}
+    setArea={setArea}
+    setPolygonCoords={setPolygonCoords}
+/>
 
   const fetchClima = async () => {
     if (activeMap === 'earth') {
@@ -245,6 +264,7 @@ function Dashboard() {
               borderRadius:'8px', padding:'10px 12px' }}>
               <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>1.</span>Dibuja el terreno en el mapa</div>
               <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>2.</span>Haz clic en <strong style={{color:'#fff'}}>Analizar terreno</strong></div>
+              
             </div>
           )}
 
@@ -268,6 +288,13 @@ function Dashboard() {
             }}>
               + Registrar rover
             </button>
+            <button onClick={() => setSaasModalOpen(true)} style={{
+              width:'100%', fontSize:'0.71rem', padding:'7px', background:'transparent',
+              border:'1px solid var(--line)', color:'#5af7cf', borderRadius:'8px', cursor:'pointer',
+              marginTop: '4px'
+            }}>
+              Ver Planes SaaS
+  </button>
           </div>
 
           <div style={{ borderTop:'1px solid var(--line)', paddingTop:'10px', fontSize:'0.63rem', color:'var(--muted)' }}>
@@ -285,12 +312,14 @@ function Dashboard() {
                 {activeMap === 'earth' ? 'Chihuahua — Terreno piloto' : 'Marte — Cráter Jezero'}
               </p>
             </div>
-            {routeStatus === 'planificada' && (
-              <span style={{ fontSize:'0.68rem', padding:'3px 10px', borderRadius:'999px',
-                background:'rgba(74,235,183,0.1)', color:'#5af7cf', border:'1px solid rgba(74,235,183,0.3)' }}>
-                Ruta activa
-              </span>
-            )}
+            {terrainAnalyzed && routeStatus !== 'completada' && (
+              <button 
+                onClick={() => setRouteStatus('completada')}
+                style={{ fontSize:'0.68rem', padding:'5px 12px', borderRadius:'999px',
+                background:'rgba(74,235,183,0.15)', color:'#5af7cf', border:'1px solid #5af7cf', cursor:'pointer', fontWeight:'bold', transition: 'all 0.2s' }}>
+                ▶ Completar Simulación
+              </button>
+          )}
           </div>
 
           {analyzing && (
@@ -465,6 +494,16 @@ function Dashboard() {
         onClose={() => setRobotModalOpen(false)}
         onCreated={() => setRobotsRefreshToken(v => v + 1)}
       />
+      <PlanesSaaS
+        open={saasModalOpen}
+        onClose={() => setSaasModalOpen(false)}
+      />
+      {routeStatus === 'completada' && (
+        <Cotizador 
+          area={area} 
+          onClose={() => setRouteStatus('idle')} 
+        />
+      )}
     </div>
   );
 }
