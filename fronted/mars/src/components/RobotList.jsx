@@ -11,7 +11,7 @@ const EMPTY_EDIT_FORM = {
   sensores_ir: '',
 };
 
-export function RobotList({ onCreateRobot = () => {}, onShowRoutes = () => {}, onShowRouteMap = () => {}, refreshToken = 0 }) {
+export function RobotList({ onCreateRobot = () => {}, onShowRoutes = () => {}, onShowRouteMap = () => {}, refreshToken = 0, batteryLevel = 85, failsafeStatus = 'NORMAL' }) {
 
   const [robots, setRobots] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +119,18 @@ export function RobotList({ onCreateRobot = () => {}, onShowRoutes = () => {}, o
     }
   }
 
-  const robotsConRutas = useMemo(() => robots, [robots]);
+  const robotsConRutas = useMemo(() => {
+    return robots.map((robot, idx) => {
+      if (idx === 0) {
+        return {
+          ...robot,
+          bateria: batteryLevel,
+          estado: failsafeStatus === 'ACTIVE' ? 'mantenimiento' : 'activo',
+        };
+      }
+      return robot;
+    });
+  }, [robots, batteryLevel, failsafeStatus]);
 
   function formatCoordinate(value) {
     const numericValue = Number(value);
@@ -130,6 +141,7 @@ export function RobotList({ onCreateRobot = () => {}, onShowRoutes = () => {}, o
     const numericValue = Number(value);
     return Number.isFinite(numericValue) ? numericValue : 0;
   }
+
 
   if (loading) return <div className="state-msg">Cargando robots...</div>;
   if (error) return <div className="state-msg error">{error}</div>;

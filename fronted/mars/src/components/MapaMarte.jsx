@@ -50,7 +50,9 @@ export function MapaMarte({
   routeStatus = 'idle', 
   onRouteCompleted = () => {}, 
   onRouteSelected,
-  refreshToken = 0
+  refreshToken = 0,
+  batteryLevel = 85,
+  failsafeStatus = 'NORMAL'
 }) {
   const simulationTimeScale = 180;
   const [robots, setRobots] = useState([]);
@@ -168,7 +170,7 @@ export function MapaMarte({
   }, [capasRutas, selectedRouteId]);
 
   const capasRobots = useMemo(() => {
-    return robots.filter((robot) => {
+    const filtered = robots.filter((robot) => {
       const lat = Number(robot.latitud_marte);
       const lon = Number(robot.longitud_marte);
       if (isNaN(lat) || isNaN(lon)) return false;
@@ -177,7 +179,18 @@ export function MapaMarte({
       if (activeMap === 'mars' && isEarth) return false;
       return true;
     });
-  }, [robots, activeMap]);
+
+    return filtered.map((robot, idx) => {
+      if (idx === 0) {
+        return {
+          ...robot,
+          bateria: batteryLevel,
+          estado: failsafeStatus === 'ACTIVE' ? 'Home-Seeking (Batería < 20%)' : robot.estado,
+        };
+      }
+      return robot;
+    });
+  }, [robots, activeMap, batteryLevel, failsafeStatus]);
 
   const capasBiopolimeros = useMemo(() => {
     return biopolimeros.filter((bio) => {
@@ -330,44 +343,8 @@ export function MapaMarte({
   return (
     <div className="mars-map-wrap">
       <div className="panel-header">
-        <h2>{config.title}</h2>
+        {/* Title removed: sidebar already shows active map */}
         <div className="map-actions">
-          <div className="map-switch" role="tablist" aria-label="Selector de mapa">
-            <button
-              type="button"
-              className={`map-switch-btn ${activeMap === 'mars' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveMap('mars');
-                setManualCenter(null);
-              }}
-            >
-              Marte
-            </button>
-            <button
-              type="button"
-              className={`map-switch-btn ${activeMap === 'earth' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveMap('earth');
-                setManualCenter(null);
-              }}
-            >
-              Chihuahua
-            </button>
-          </div>
-          <button className="btn-soft" onClick={cargarCapas} type="button">
-            Actualizar
-          </button>
-          <button
-            className="btn-soft"
-            type="button"
-            onClick={() => {
-              setManualCenter(null);
-              setSelectedRouteId(null);
-              setLastUpdate(new Date().toLocaleTimeString());
-            }}
-          >
-            Reset
-          </button>
           {generatedRoute && (
             <div style={{ marginLeft: 12 }}>
               <button
@@ -463,8 +440,11 @@ export function MapaMarte({
             ))}
 
             {capasRobots.map((robot, idx) => {
-              const iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="${colorPorIndice(idx)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${colorPorIndice(idx)}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`;
-              const robotIcon = L.divIcon({ html: iconSvg, className: 'custom-robot-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
+              const isFailsafe = idx === 0 && failsafeStatus === 'ACTIVE';
+              const strokeColor = isFailsafe ? '#ff3a5d' : colorPorIndice(idx);
+              const customClass = isFailsafe ? 'custom-robot-icon live-dot' : 'custom-robot-icon';
+              const iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${strokeColor}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`;
+              const robotIcon = L.divIcon({ html: iconSvg, className: customClass, iconSize: [28, 28], iconAnchor: [14, 14] });
               return (
                 <Marker
                     key={`robot-${robot.id}`}
@@ -474,8 +454,12 @@ export function MapaMarte({
                     <Tooltip direction="top" offset={[0, -14]} opacity={1}>
                       <div className="map-tooltip">
                         <strong>{robot.nombre}</strong>
-                        <p>Estado: {robot.estado}</p>
-                        <p>Bateria: {robot.bateria}%</p>
+                        <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
+                          Estado: {robot.estado}
+                        </p>
+                        <p style={{ color: isFailsafe ? '#ff3a5d' : 'inherit', fontWeight: isFailsafe ? 'bold' : 'normal' }}>
+                          Bateria: {robot.bateria}%
+                        </p>
                       </div>
                     </Tooltip>
                   </Marker>
@@ -584,26 +568,7 @@ export function MapaMarte({
               )}
           </>
 
-          {activeMap === 'earth' && (
-            <>
-              <CircleMarker
-                center={[28.6353, -106.0889]}
-                radius={9}
-                pathOptions={{ color: '#ffd2a8', fillColor: '#ff8a2b', fillOpacity: 0.95, weight: 2 }}
-              >
-                <Tooltip>
-                  Chihuahua - Nodo principal de remediación
-                </Tooltip>
-              </CircleMarker>
-              <Circle
-                center={[28.6353, -106.0889]}
-                radius={45000}
-                pathOptions={{ color: '#5af7cf', fillColor: '#5af7cf', fillOpacity: 0.08, weight: 2 }}
-              >
-                <Tooltip>Zona piloto de monitoreo y fitorremediación</Tooltip>
-              </Circle>
-            </>
-          )}
+          {/* Removed static Chihuahua marker and radius circle per request */}
         </MapContainer>
 
         <div className="map-overlay-info">

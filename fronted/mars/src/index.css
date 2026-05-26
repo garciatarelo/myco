@@ -38,7 +38,7 @@ body {
 
 .mission-layout {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 260px 1fr;
   gap: 12px;
   min-height: calc(100vh - 20px);
   width: 100%;
@@ -787,4 +787,51 @@ textarea {
   .mars-canvas {
     min-height: 340px;
   }
+}
+
+/* Custom premium styles for IoT and Energy Control Center */
+@keyframes pulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+}
+
+.live-dot {
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* Custom scrollbars for the Linux diagnostics terminal */
+.tab-content::-webkit-scrollbar,
+pre::-webkit-scrollbar,
+div::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.tab-content::-webkit-scrollbar-track,
+pre::-webkit-scrollbar-track,
+div::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.tab-content::-webkit-scrollbar-thumb,
+pre::-webkit-scrollbar-thumb,
+div::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 3px;
+}
+
+.tab-content::-webkit-scrollbar-thumb:hover,
+pre::-webkit-scrollbar-thumb:hover,
+div::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
 }
