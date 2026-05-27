@@ -5,6 +5,7 @@ import { CreateRobotModal } from './components/CreateRobotModal';
 import { EstadisticasPanel } from './components/EstadisticasPanel';
 import teamLogo from './assets/logo.ico';
 import { PlanesSaaS } from './components/PlanesSaaS';
+import { Cotizador } from './components/Cotizador';
 import * as turf from '@turf/turf';
 
 function Dashboard() {
@@ -14,10 +15,6 @@ function Dashboard() {
   const [routeStatus, setRouteStatus] = useState('idle');
   const [robotsRefreshToken, setRobotsRefreshToken] = useState(0);
   const [activeMap, setActiveMap] = useState('earth');
-  const [robotFleet, setRobotFleet] = useState([
-    { id: 1, nombre: 'Rover-01', estado: 'libre', tarea: 'Sin asignar' },
-    { id: 2, nombre: 'Rover-02', estado: 'libre', tarea: 'Sin asignar' },
-  ]);
 
   const [terrainAnalyzed, setTerrainAnalyzed] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -31,6 +28,11 @@ function Dashboard() {
   const [failsafeStatus, setFailsafeStatus] = useState('NORMAL');
   const [isCharging, setIsCharging] = useState(false);
   const chargeRef = useRef(null);
+
+  const [robotFleet, setRobotFleet] = useState([
+    { id: 1, nombre: 'Rover-01', estado: 'libre', tarea: 'Sin asignar' },
+    { id: 2, nombre: 'Rover-02', estado: 'libre', tarea: 'Sin asignar' },
+  ]);
   const [soilHistoryByMap, setSoilHistoryByMap] = useState({ earth: [], mars: [] });
 
   const [clima, setClima] = useState(null);
@@ -38,6 +40,7 @@ function Dashboard() {
   const [polygonCoords, setPolygonCoords] = useState(null);
   const [saasModalOpen, setSaasModalOpen] = useState(false);
   const [terrainAlertOpen, setTerrainAlertOpen] = useState(false);
+  const [cotizadorOpen, setCotizadorOpen] = useState(false);
 
   const freeRobots = robotFleet.filter((robot) => robot.estado === 'libre');
   const occupiedRobots = robotFleet.filter((robot) => robot.estado === 'ocupado');
@@ -119,6 +122,7 @@ function Dashboard() {
     }
 
     markRobotAsOccupied(activeMap === 'earth' ? 'Terreno Chihuahua' : 'Terreno Marte');
+
     setAnalyzing(true);
     setAnalysisProgress(0);
     setTerrainAnalyzed(false);
@@ -153,7 +157,7 @@ function Dashboard() {
         setGeneratedRoute(data.rutas[0]);
         setRouteStatus('planificada');
       } else {
-        throw new Error("Sin rutas en BD");
+        throw new Error('Sin rutas en BD');
       }
       setRobotsRefreshToken(v => v + 1);
     } catch {
@@ -162,12 +166,9 @@ function Dashboard() {
           const poly = turf.polygon(polygonCoords);
           const boundingBox = turf.bbox(poly);
           const widthKm = turf.distance([boundingBox[0], boundingBox[1]], [boundingBox[2], boundingBox[1]]);
-          const cellSize = widthKm / 5; 
+          const cellSize = widthKm / 5;
           const grid = turf.pointGrid(boundingBox, cellSize, { mask: poly, units: 'kilometers' });
-          let puntosSimulados = grid.features.map(f => ({
-            lon: f.geometry.coordinates[0],
-            lat: f.geometry.coordinates[1]
-          }));
+          let puntosSimulados = grid.features.map(f => ({ lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] }));
           if (puntosSimulados.length < 2) {
             puntosSimulados = polygonCoords[0].map(coord => ({ lon: coord[0], lat: coord[1] }));
           }
@@ -189,7 +190,7 @@ function Dashboard() {
         p += 1;
         if (p >= 100) { clearInterval(iv); setAnalysisProgress(100); res(); }
         else setAnalysisProgress(p);
-      }, 30); 
+      }, 30);
     });
 
     setAnalysisPhase('Análisis completado. Robot en ruta...');
@@ -222,9 +223,7 @@ function Dashboard() {
   const consoleRef = useRef(null);
   const addLog = (lines) => setLogs(prev => [...prev, ...lines.map(l => `[${new Date().toLocaleTimeString()}] ${l}`)]);
 
-  useEffect(() => {
-    if (consoleRef.current) consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
-  }, [logs]);
+  useEffect(() => { if (consoleRef.current) consoleRef.current.scrollTop = consoleRef.current.scrollHeight; }, [logs]);
 
   const startAutoCharge = () => {
     if (chargeRef.current) return;
@@ -270,7 +269,9 @@ function Dashboard() {
             </div>
             <h1 style={{ margin:0, fontSize:'1.35rem', color:'#ff4500', fontWeight:'900', letterSpacing:'1px' }}>M.Y.C.O</h1>
           </div>
+
           <div style={{ borderTop:'1px solid var(--line)' }} />
+
           <div>
             <span style={lbl}>Vista del mapa</span>
             <div style={{ display:'flex', gap:'4px', marginTop:'4px' }}>
@@ -279,6 +280,7 @@ function Dashboard() {
               ))}
             </div>
           </div>
+
           <div style={{ ...card, display:'flex', flexDirection:'column', gap:'7px' }}>
             <span style={lbl}>Rover-01</span>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem' }}>
@@ -297,6 +299,7 @@ function Dashboard() {
               <div style={{ height:'5px', borderRadius:'999px', background:'rgba(255,255,255,0.06)' }}><div style={{ width:`${batteryLevel}%`, height:'100%', borderRadius:'999px', background:`linear-gradient(90deg,${battColor},${battColor}88)`, transition:'width 0.4s' }} /></div>
             </div>
           </div>
+
           <div style={{ ...card, display:'flex', flexDirection:'column', gap:'8px', minHeight:'136px' }}>
             <span style={lbl}>Robots del terreno</span>
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -314,33 +317,50 @@ function Dashboard() {
               Libres: {freeRobots.length} | Ocupados: {occupiedRobots.length}
             </div>
           </div>
-          {!terrainAnalyzed && !analyzing && (
-            <div style={{ fontSize:'0.7rem', color:'var(--muted)', lineHeight:1.7, background:'rgba(255,255,255,0.02)', border:'1px solid var(--line)', borderRadius:'8px', padding:'10px 12px' }}>
-              <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>1.</span>Dibuja el terreno en el mapa</div>
-              <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>2.</span>Haz clic en <strong style={{color:'#fff'}}>Analizar terreno</strong></div>
-            </div>
-          )}
+
           <div style={{ display:'flex', flexDirection:'column', gap:'6px', marginTop:'auto' }}>
             <button onClick={handleAnalyze} disabled={analyzing || isCharging} style={{ width:'100%', fontSize:'0.75rem', padding:'10px', background: analyzing ? 'rgba(255,69,0,0.05)' : 'rgba(255,69,0,0.9)', border:'1px solid #ff4500', color: analyzing ? '#ff8a2b' : '#fff', borderRadius:'8px', cursor: analyzing ? 'not-allowed' : 'pointer', fontWeight:'700', transition:'all 0.2s' }}>{analyzing ? 'Analizando...' : terrainAnalyzed ? 'Volver a analizar' : 'Analizar terreno'}</button>
             <button onClick={() => setRobotModalOpen(true)} style={{ width:'100%', fontSize:'0.71rem', padding:'7px', background:'transparent', border:'1px solid var(--line)', color:'var(--muted)', borderRadius:'8px', cursor:'pointer' }}>+ Registrar rover</button>
             <button onClick={() => setSaasModalOpen(true)} style={{ width:'100%', fontSize:'0.71rem', padding:'7px', background:'transparent', border:'1px solid var(--line)', color:'#5af7cf', borderRadius:'8px', cursor:'pointer', marginTop: '4px' }}>Ver Planes SaaS</button>
+            {routeStatus === 'completada' && (
+              <button onClick={() => setCotizadorOpen(true)} style={{ width:'100%', fontSize:'0.71rem', padding:'7px', background:'rgba(255,138,43,0.1)', border:'1px solid #ff8a2b', color:'#ff8a2b', borderRadius:'8px', cursor:'pointer', marginTop: '4px', fontWeight: 'bold' }}>🛒 Ver Cotización Final</button>
+            )}
           </div>
+
           <div style={{ borderTop:'1px solid var(--line)', paddingTop:'10px', fontSize:'0.63rem', color:'var(--muted)' }}><div style={{ display:'flex', justifyContent:'space-between' }}><span>Conexión</span><strong style={{ color:'#5af7cf' }}>Activa</strong></div></div>
         </aside>
+
         <div className="panel" style={{ padding:'10px', display:'flex', flexDirection:'column', gap:'8px', overflow:'hidden' }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
             <div><p style={{ margin:0, fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'1px', color:'var(--muted)' }}>Gemelo Digital</p><p style={{ margin:0, fontSize:'0.8rem', color:'#fff', fontWeight:'600' }}>{activeMap === 'earth' ? 'Chihuahua — Terreno piloto' : 'Marte — Cráter Jezero'}</p></div>
           </div>
+
           {analyzing && (
             <div style={{ flexShrink:0, background:'rgba(255,69,0,0.05)', border:'1px solid rgba(255,69,0,0.2)', borderRadius:'8px', padding:'10px 14px' }}>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.7rem', marginBottom:'6px' }}><span style={{ color:'#ff8a2b' }}>{analysisPhase}</span><strong style={{ color:'#ff4500' }}>{Math.round(analysisProgress)}%</strong></div>
               <div style={{ height:'5px', borderRadius:'999px', background:'rgba(255,255,255,0.05)' }}><div style={{ width:`${analysisProgress}%`, height:'100%', borderRadius:'999px', background:'linear-gradient(90deg,#ff4500,#ff8a2b)', transition:'width 0.15s ease' }} /></div>
             </div>
           )}
+
           <div style={{ flex:1, borderRadius:'8px', overflow:'hidden', border:'1px solid var(--line)', minHeight:0 }}>
-            <MapaMarte activeMap={activeMap} setActiveMap={setActiveMap} generatedRoute={generatedRoute} routeStatus={routeStatus} onRouteCompleted={() => { setRouteStatus('completada'); addLog(['[SYS] Inyección completada con éxito.']); }} onRouteSelected={() => {}} refreshToken={robotsRefreshToken} batteryLevel={batteryLevel} failsafeStatus={failsafeStatus} setArea={setArea} setPolygonCoords={setPolygonCoords} isAnalyzing={analyzing} robots={robotFleet} />
+            <MapaMarte
+              activeMap={activeMap}
+              setActiveMap={setActiveMap}
+              generatedRoute={generatedRoute}
+              routeStatus={routeStatus}
+              onRouteCompleted={() => { setRouteStatus('completada'); addLog(['[SYS] Inyección completada con éxito.']); }}
+              onRouteSelected={() => {}}
+              refreshToken={robotsRefreshToken}
+              batteryLevel={batteryLevel}
+              failsafeStatus={failsafeStatus}
+              setArea={setArea}
+              setPolygonCoords={setPolygonCoords}
+              isAnalyzing={analyzing}
+              robots={robotFleet}
+            />
           </div>
         </div>
+
         <div style={{ display:'flex', flexDirection:'column', gap:'8px', overflowY:'auto', paddingRight:'4px' }}>
           <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', minHeight:'158px' }}>
             <span style={{ ...lbl, marginBottom:'10px' }}>Clima</span>
@@ -352,7 +372,8 @@ function Dashboard() {
               </div>
             )}
           </div>
-          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', minHeight:'176px' }}>
+
+          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column' }}>
             <span style={{ ...lbl, marginBottom:'12px' }}>Suelo</span>
             {!terrainAnalyzed ? <div style={{ display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.72rem', textAlign:'center', padding:'20px 0' }}>Sin terreno analizado</div> : (
               <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
@@ -362,14 +383,16 @@ function Dashboard() {
               </div>
             )}
           </div>
-          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', minHeight:'240px' }}>
+
+          <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', minHeight:'180px' }}>
             <span style={{ ...lbl, marginBottom:'12px' }}>Datos de Remediación</span>
-            {terrainAnalyzed ? (
-              <EstadisticasPanel activeMap={activeMap} arsenicLevel={arsenicLevel} area={area} soilProgressHistory={soilHistoryByMap[activeMap] ?? []} />
+            {!terrainAnalyzed ? (
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.72rem', textAlign:'center', padding:'20px 0' }}>Sin terreno analizado</div>
             ) : (
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:'0.72rem', textAlign:'center', padding:'28px 0' }}>Sin terreno analizado</div>
+              <EstadisticasPanel activeMap={activeMap} arsenicLevel={arsenicLevel} area={area} soilProgressHistory={soilHistoryByMap[activeMap] ?? []} />
             )}
           </div>
+
           <div className="panel" style={{ padding:'14px', flexShrink:0, display:'flex', flexDirection:'column', gap:'10px' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}><span style={lbl}>Rover</span><span style={{ fontSize:'0.63rem', fontWeight:'700', padding:'2px 8px', borderRadius:'4px', background: isCharging ? 'rgba(255,193,7,0.12)' : failsafeStatus==='ACTIVE' ? 'rgba(255,112,112,0.12)' : 'rgba(74,235,183,0.08)', color: isCharging ? '#ffc107' : failsafeStatus==='ACTIVE' ? '#ff7070' : '#5af7cf', border:`1px solid ${isCharging ? '#ffc107' : failsafeStatus==='ACTIVE' ? '#ff7070' : '#5af7cf'}`, animation: failsafeStatus==='ACTIVE' ? 'pulse 1s infinite' : 'none' }}>{isCharging ? 'Cargando' : failsafeStatus==='ACTIVE' ? 'Regresando' : 'Normal'}</span></div>
             <div><div style={{ display:'flex', justifyContent:'space-between', fontSize:'0.74rem', marginBottom:'5px' }}><span style={{ color:'var(--muted)' }}>Batería</span><strong style={{ color: battColor }}>{batteryLevel}%{isCharging ? ' ↑' : ''}</strong></div><input type="range" min="5" max="100" value={batteryLevel} onChange={e => { if (!isCharging) setBatteryLevel(+e.target.value); }} disabled={isCharging} style={{ width:'100%' }} /><span style={{ fontSize:'0.62rem', color: batteryLevel<20 ? '#ff7070':'var(--muted)', display:'block', marginTop:'3px' }}>{isCharging ? 'Cargando en la estación...' : batteryLevel<20 ? 'Retorno automático activado' : 'Al llegar al 20% el rover regresa solo'}</span></div>
@@ -377,8 +400,10 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
       <GenerateRutaModal open={modalOpen} onClose={() => setModalOpen(false)} onGenerated={ruta => { setGeneratedRoute(ruta); setRouteStatus('planificada'); }} />
       <CreateRobotModal open={robotModalOpen} onClose={() => setRobotModalOpen(false)} onCreated={() => setRobotsRefreshToken(v => v + 1)} />
+
       {terrainAlertOpen && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal panel">
@@ -392,7 +417,9 @@ function Dashboard() {
           </div>
         </div>
       )}
+
       <PlanesSaaS open={saasModalOpen} onClose={() => setSaasModalOpen(false)} />
+      {cotizadorOpen && <Cotizador area={area} onClose={() => setCotizadorOpen(false)} />}
     </div>
   );
 }

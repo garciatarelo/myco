@@ -172,6 +172,7 @@ npm run dev
 
 El servidor estara disponible en http://localhost:5173
 
+<<<<<<< HEAD
 4. Crear un archivo `.env.local` en `fronted/mars/` con tus variables privadas:
 ```bash
 VITE_API_URL=http://127.0.0.1:8000/api
@@ -180,6 +181,8 @@ VITE_MAPBOX_TOKEN=tu_token_publico_de_mapbox
 
 No subas `.env.local` a GitHub. El archivo `.env.example` queda solo como plantilla sin secretos.
 
+=======
+>>>>>>> 6711aca5c77212fe3f3a7ada08082c0f97e0a8ad
 ### Desarrollo Concurrente
 
 Para ejecutar ambos servidores simultaneamente, desde el directorio backend/mars:
