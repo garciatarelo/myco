@@ -5,7 +5,6 @@ import { CreateRobotModal } from './components/CreateRobotModal';
 import { EstadisticasPanel } from './components/EstadisticasPanel';
 import teamLogo from './assets/logo.ico';
 import { PlanesSaaS } from './components/PlanesSaaS';
-  import { Cotizador } from './components/Cotizador';
 
 function Dashboard() {
   const [modalOpen, setModalOpen] = useState(false);
@@ -29,31 +28,15 @@ function Dashboard() {
   const chargeRef = useRef(null);
 
   const [clima, setClima] = useState(null);
-  
   const [area, setArea] = useState(0);
   const [polygonCoords, setPolygonCoords] = useState(null);
-
   const [saasModalOpen, setSaasModalOpen] = useState(false);
-
-  <MapaMarte
-    activeMap={activeMap}
-    setActiveMap={setActiveMap}
-    generatedRoute={generatedRoute}
-    routeStatus={routeStatus}
-    onRouteCompleted={() => setRouteStatus('completada')}
-    onRouteSelected={() => {}}
-    refreshToken={robotsRefreshToken}
-    batteryLevel={batteryLevel}
-    failsafeStatus={failsafeStatus}
-    setArea={setArea}
-    setPolygonCoords={setPolygonCoords}
-/>
 
   const fetchClima = async () => {
     if (activeMap === 'earth') {
       try {
         const res = await fetch(
-          `https://api.openweathermap.org/data/2.5/weather?lat=28.6353&lon=-106.0889&appid=364998e3b3a32f6b8df815a51c4a0342&units=metric`
+          `https://api.openweathermap.org/data/2.5/weather?lat=30.6250&lon=-107.8850&appid=364998e3b3a32f6b8df815a51c4a0342&units=metric`
         );
         if (!res.ok) throw new Error();
         const d = await res.json();
@@ -118,11 +101,25 @@ function Dashboard() {
       setRobotsRefreshToken(v => v + 1);
     } catch {}
 
-    setAnalysisPhase('Análisis completado');
-    setAnalysisProgress(100);
+    setAnalysisPhase('Simulando inyección en el mapa...');
+    addLog(['[SYS] Iniciando recorrido en el polígono...', '[SYS] Inyectando cápsulas de micelio...']);
+    
+    await new Promise(res => {
+      let p = 90;
+      const iv = setInterval(() => {
+        p += 1;
+        if (p >= 100) { clearInterval(iv); setAnalysisProgress(100); res(); }
+        else setAnalysisProgress(p);
+      }, 30); 
+    });
+
+    setAnalysisPhase('Análisis y simulación completados');
     await new Promise(res => setTimeout(res, 600));
+    
     setAnalyzing(false);
     setTerrainAnalyzed(true);
+    setRouteStatus('completada');
+    addLog(['[SYS] Inyección completada con éxito.']);
   };
 
   const [logs, setLogs] = useState([
@@ -194,7 +191,6 @@ function Dashboard() {
     display: 'block',
     marginBottom: '3px',
   };
-  const emptyVal = <span style={{ color:'var(--line)', fontSize:'1rem', fontWeight:'700' }}>—</span>;
 
   return (
     <div style={{ padding:'8px', height:'100vh', boxSizing:'border-box', background:'#000', overflow:'hidden' }}>
@@ -264,7 +260,6 @@ function Dashboard() {
               borderRadius:'8px', padding:'10px 12px' }}>
               <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>1.</span>Dibuja el terreno en el mapa</div>
               <div><span style={{ color:'#ff8a2b', fontWeight:'700', marginRight:'6px' }}>2.</span>Haz clic en <strong style={{color:'#fff'}}>Analizar terreno</strong></div>
-              
             </div>
           )}
 
@@ -294,7 +289,7 @@ function Dashboard() {
               marginTop: '4px'
             }}>
               Ver Planes SaaS
-  </button>
+            </button>
           </div>
 
           <div style={{ borderTop:'1px solid var(--line)', paddingTop:'10px', fontSize:'0.63rem', color:'var(--muted)' }}>
@@ -312,14 +307,6 @@ function Dashboard() {
                 {activeMap === 'earth' ? 'Chihuahua — Terreno piloto' : 'Marte — Cráter Jezero'}
               </p>
             </div>
-            {terrainAnalyzed && routeStatus !== 'completada' && (
-              <button 
-                onClick={() => setRouteStatus('completada')}
-                style={{ fontSize:'0.68rem', padding:'5px 12px', borderRadius:'999px',
-                background:'rgba(74,235,183,0.15)', color:'#5af7cf', border:'1px solid #5af7cf', cursor:'pointer', fontWeight:'bold', transition: 'all 0.2s' }}>
-                ▶ Completar Simulación
-              </button>
-          )}
           </div>
 
           {analyzing && (
@@ -350,6 +337,9 @@ function Dashboard() {
               refreshToken={robotsRefreshToken}
               batteryLevel={batteryLevel}
               failsafeStatus={failsafeStatus}
+              setArea={setArea}
+              setPolygonCoords={setPolygonCoords}
+              isAnalyzing={analyzing || terrainAnalyzed}
             />
           </div>
         </div>
@@ -498,12 +488,6 @@ function Dashboard() {
         open={saasModalOpen}
         onClose={() => setSaasModalOpen(false)}
       />
-      {routeStatus === 'completada' && (
-        <Cotizador 
-          area={area} 
-          onClose={() => setRouteStatus('idle')} 
-        />
-      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import mapboxgl from 'mapbox-gl';
 import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import * as turf from '@turf/turf';
@@ -6,7 +6,7 @@ import { apiService } from '../services/api';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
-mapboxgl.accessToken = '';
+mapboxgl.accessToken = 'pongan su token aqui jsjs';
 
 export function MapaMarte({ 
   activeMap = 'earth', 
@@ -19,7 +19,8 @@ export function MapaMarte({
   batteryLevel = 85,
   failsafeStatus = 'NORMAL',
   setArea,
-  setPolygonCoords
+  setPolygonCoords,
+  isAnalyzing = false 
 }) {
   const simulationTimeScale = 180;
   
@@ -29,18 +30,27 @@ export function MapaMarte({
   const [zonasToxicas, setZonasToxicas] = useState([]);
   const [mapError, setMapError] = useState('');
   
+  const [frozenPolygonFeature, setFrozenPolygonFeature] = useState(null);
+
   const mapContainer = useRef(null);
   const map = useRef(null);
   const draw = useRef(null);
+
+  const clearFrozenLayers = () => {
+    if (!map.current) return;
+    if (map.current.getLayer('frozenPolygonFill')) map.current.removeLayer('frozenPolygonFill');
+    if (map.current.getLayer('frozenPolygonOutline')) map.current.removeLayer('frozenPolygonOutline');
+    if (map.current.getSource('frozenPolygon')) map.current.removeSource('frozenPolygon');
+  };
 
   useEffect(() => {
     if (map.current) return; 
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/dark-v11', 
-      center: [-106.0889, 28.6353], 
-      zoom: 14
+      style: 'mapbox://styles/mapbox/satellite-v9', 
+      center: [-107.8850, 30.6250], 
+      zoom: 13.8
     });
 
     draw.current = new MapboxDraw({
@@ -58,6 +68,7 @@ export function MapaMarte({
       const data = draw.current.getAll();
       if (data.features.length > 0) {
         const poligono = data.features[0];
+        setFrozenPolygonFeature(poligono);
         
         if (setPolygonCoords) {
           setPolygonCoords(poligono.geometry.coordinates);
@@ -75,9 +86,55 @@ export function MapaMarte({
     map.current.on('draw.delete', () => {
       if (setArea) setArea(0);
       if (setPolygonCoords) setPolygonCoords(null);
+      setFrozenPolygonFeature(null);
     });
 
   }, []);
+
+  useEffect(() => {
+    if (!draw.current || !map.current || !draw.current.changeMode) return;
+    
+    if (isAnalyzing && frozenPolygonFeature) {
+      draw.current.changeMode('simple_select');
+      map.current.removeControl(draw.current);
+
+      if (!map.current.getSource('frozenPolygon')) {
+        map.current.addSource('frozenPolygon', {
+          type: 'geojson',
+          data: frozenPolygonFeature
+        });
+
+        map.current.addLayer({
+          id: 'frozenPolygonFill',
+          type: 'fill',
+          source: 'frozenPolygon',
+          paint: {
+            'fill-color': '#ff4500',
+            'fill-opacity': 0.1
+          }
+        });
+
+        map.current.addLayer({
+          id: 'frozenPolygonOutline',
+          type: 'line',
+          source: 'frozenPolygon',
+          paint: {
+            'line-color': '#ff4500',
+            'line-width': 2,
+            'line-dasharray': [5, 5]
+          }
+        });
+      }
+
+    } else if (!isAnalyzing) {
+      clearFrozenLayers();
+      
+      const element = document.querySelector('.mapboxgl-ctrl-group');
+      if (!element) {
+         map.current.addControl(draw.current);
+      }
+    }
+  }, [isAnalyzing, frozenPolygonFeature]);
 
   useEffect(() => {
     cargarCapas();
