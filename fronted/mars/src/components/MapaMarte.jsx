@@ -1,676 +1,352 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Circle, CircleMarker, Marker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import { apiService } from '../services/api';
+import React, { useEffect, useState, useRef } from 'react';
+import mapboxgl from 'mapbox-gl';
+import MapboxDraw from '@mapbox/mapbox-gl-draw';
+import * as turf from '@turf/turf';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
-const MAP_CONFIG = {
-  mars: {
-    id: 'mars',
-    label: 'Marte',
-    title: 'Mars - Jezero Crater',
-    center: [-4.6, 137.4],
-    zoom: 6,
-    tileUrl:
-      'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
-    attribution: 'NASA Trek - Mars Viking MDIM21',
-    crs: L.CRS.EPSG4326,
-    bounds: [
-      [-90, -180],
-      [90, 180],
-    ],
-    noWrap: true,
-    minZoom: 1,
-    maxZoom: 7,
-    maxNativeZoom: 7,
-  },
-  earth: {
-    id: 'earth',
-    label: 'Tierra (Chihuahua)',
-    title: 'Tierra - Chihuahua, Mexico',
-    center: [28.6353, -106.0889],
-    zoom: 9,
-    tileUrl: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Esri World Imagery',
-    crs: L.CRS.EPSG3857,
-    bounds: [
-      [25.50, -109.10], // Suroeste de Chihuahua
-      [31.80, -103.20], // Noreste de Chihuahua
-    ],
-    noWrap: true,
-    minZoom: 6,
-    maxZoom: 18,
-    maxNativeZoom: 17,
-  },
-};
+const mapboxAccessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+const mapStyleUrl = 'mapbox://styles/mapbox/satellite-streets-v12';
+const chihuahuaRuralCenter = [-107.9025, 30.3485];
+const chihuahuaRuralZoom = 15.1;
+const demoRobots = [
+  { id: 1, nombre: 'Rover-01', estado: 'activo', bateria: 85, coordinates: [-107.9042, 30.3489] },
+  { id: 2, nombre: 'Rover-02', estado: 'mantenimiento', bateria: 62, coordinates: [-107.8998, 30.3474] },
+];
+
+mapboxgl.accessToken = mapboxAccessToken ?? '';
 
 export function MapaMarte({ 
-  activeMap = 'mars', 
+  activeMap = 'earth', 
   setActiveMap, 
   generatedRoute = null, 
   routeStatus = 'idle', 
   onRouteCompleted = () => {}, 
   onRouteSelected,
-  refreshToken = 0
+  refreshToken = 0,
+  batteryLevel = 85,
+  failsafeStatus = 'NORMAL',
+  setArea,
+  setPolygonCoords,
+  isAnalyzing = false,
+  robots = [] 
 }) {
-  const simulationTimeScale = 180;
-  const [robots, setRobots] = useState([]);
-  const [rutas, setRutas] = useState([]);
-  const [biopolimeros, setBiopolimeros] = useState([]);
-  const [zonasToxicas, setZonasToxicas] = useState([]);
+  const mapContainer = useRef(null);
+  const map = useRef(null);
+  const draw = useRef(null);
+  const animacionRef = useRef(null);
+  const inyeccionRef = useRef(null);
   const [mapError, setMapError] = useState('');
-  const [lastUpdate, setLastUpdate] = useState('');
-  const [manualCenter, setManualCenter] = useState(null);
-  const [animPos, setAnimPos] = useState(null);
-  const [selectedRouteId, setSelectedRouteId] = useState(null);
-  const [routeActionError, setRouteActionError] = useState('');
-  const animRef = useRef({ intervalId: null, idx: 0, positions: [] });
+  
+  const [frozenPolygonFeature, setFrozenPolygonFeature] = useState(null);
+  const [, setFrozenPolygonHistory] = useState([]);
+  const [, setRouteHistoryFeatures] = useState([]);
+  const [, setInjectionHistoryFeatures] = useState([]);
+
+  const syncFrozenPolygonLayer = (features) => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+
+    const collection = {
+      type: 'FeatureCollection',
+      features: features.filter(Boolean),
+    };
+
+    const frozenSource = map.current.getSource('frozenPolygon');
+    if (frozenSource) {
+      frozenSource.setData(collection);
+      return;
+    }
+
+    map.current.addSource('frozenPolygon', { type: 'geojson', data: collection });
+    map.current.addLayer({
+      id: 'frozenPolygonFill',
+      type: 'fill',
+      source: 'frozenPolygon',
+      paint: { 'fill-color': '#ff4500', 'fill-opacity': 0.1 },
+    });
+    map.current.addLayer({
+      id: 'frozenPolygonOutline',
+      type: 'line',
+      source: 'frozenPolygon',
+      paint: { 'line-color': '#ff4500', 'line-width': 2, 'line-dasharray': [5, 5] },
+    });
+  };
+
+  const fleetForMap = robots.length > 0 ? robots : demoRobots;
+
+  const getDemoRobotCollection = () => ({
+    type: 'FeatureCollection',
+    features: fleetForMap.map((robot) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: robot.coordinates,
+      },
+      properties: {
+        id: robot.id,
+        nombre: robot.nombre,
+        estado: robot.estado,
+        estadoLabel: robot.estado === 'ocupado' ? 'Ocupado' : 'Libre',
+        bateria: robot.bateria,
+        color: robot.estado === 'ocupado' ? '#ff7070' : '#5af7cf',
+      },
+    })),
+  });
 
   useEffect(() => {
-    if (onRouteSelected) {
-      onRouteSelected(selectedRouteId);
-    }
-  }, [selectedRouteId, onRouteSelected]);
-
-  const config = MAP_CONFIG[activeMap];
-  const mapCenter = manualCenter || config.center;
-
-  const generatedRoutePoints = useMemo(() => {
-    if (!generatedRoute || !Array.isArray(generatedRoute.puntos_json)) {
-      return [];
+    if (!mapboxAccessToken) {
+      setMapError('Falta configurar VITE_MAPBOX_TOKEN para usar Mapbox GL JS.');
+      return;
     }
 
-    return generatedRoute.puntos_json
-      .filter((p) => p && p.lat !== undefined && p.lon !== undefined)
-      .map((p) => [Number(p.lat), Number(p.lon)])
-      .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
-  }, [generatedRoute]);
+    if (map.current) return; 
 
-  const interactionPoints = useMemo(() => {
-    if (generatedRoutePoints.length === 0 || biopolimeros.length === 0) {
-      return [];
-    }
+    map.current = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: mapStyleUrl,
+      center: chihuahuaRuralCenter,
+      zoom: chihuahuaRuralZoom
+    });
 
-    const threshold = 0.02;
-    const matches = [];
+    draw.current = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: { polygon: true, trash: true },
+      defaultMode: 'draw_polygon'
+    });
 
-    generatedRoutePoints.forEach((point, index) => {
-      const matchingBio = biopolimeros.find((bio) => {
-        if (typeof bio.latitud_marte !== 'number' || typeof bio.longitud_marte !== 'number') {
-          return false;
-        }
+    map.current.addControl(draw.current);
 
-        const latDiff = Math.abs(point[0] - Number(bio.latitud_marte));
-        const lonDiff = Math.abs(point[1] - Number(bio.longitud_marte));
-        return latDiff <= threshold && lonDiff <= threshold;
+    const procesarPoligono = () => {
+      const data = draw.current.getAll();
+      if (data.features.length > 0) {
+        const poligono = data.features[0];
+        setFrozenPolygonFeature(poligono);
+        if (setPolygonCoords) setPolygonCoords(poligono.geometry.coordinates);
+        if (setArea) setArea(Math.round(turf.area(poligono)));
+      }
+    };
+
+    map.current.on('draw.create', procesarPoligono);
+    map.current.on('draw.update', procesarPoligono);
+    map.current.on('draw.delete', () => {
+      if (setArea) setArea(0);
+      if (setPolygonCoords) setPolygonCoords(null);
+      setFrozenPolygonFeature(null);
+      if (map.current.getSource('ruta-inyeccion')) map.current.getSource('ruta-inyeccion').setData({ type: 'FeatureCollection', features: [] });
+      if (map.current.getSource('robot-animado')) map.current.getSource('robot-animado').setData({ type: 'FeatureCollection', features: [] });
+      if (map.current.getSource('inyeccion-puntos')) map.current.getSource('inyeccion-puntos').setData({ type: 'FeatureCollection', features: [] });
+      inyeccionRef.current = null;
+    });
+
+    map.current.on('load', () => {
+      map.current.addSource('mars-tiles', {
+        type: 'raster',
+        tiles: ['https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg'],
+        tileSize: 256
+      });
+      map.current.addLayer({
+        id: 'mars-layer',
+        type: 'raster',
+        source: 'mars-tiles',
+        layout: { visibility: activeMap === 'mars' ? 'visible' : 'none' }
       });
 
-      if (matchingBio) {
-        matches.push({
-          point,
-          index,
-          bio: matchingBio,
-        });
-      }
-    });
+      map.current.getCanvasContainer().style.cursor = 'crosshair';
 
-    return matches;
-  }, [generatedRoutePoints, biopolimeros]);
+      map.current.addSource('ruta-inyeccion', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }});
+      map.current.addLayer({
+        id: 'linea-ruta', type: 'line', source: 'ruta-inyeccion',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#5af7cf', 'line-width': 4, 'line-dasharray': [2, 2] }
+      });
 
-  function RouteAutoFocus({ points }) {
-    const map = useMap();
+      map.current.addSource('ruta-historial', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }});
+      map.current.addLayer({
+        id: 'linea-ruta-historial',
+        type: 'line',
+        source: 'ruta-historial',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#5af7cf', 'line-width': 4, 'line-dasharray': [2, 2], 'line-opacity': 0.65 }
+      });
 
-    useEffect(() => {
-      if (!points || points.length === 0) return;
+      map.current.addSource('robot-animado', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }});
+      map.current.addLayer({
+        id: 'punto-robot', type: 'circle', source: 'robot-animado',
+        paint: { 'circle-radius': 5, 'circle-color': '#ff4500', 'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' }
+      });
 
-      if (points.length === 1) {
-        map.setView(points[0], Math.max(map.getZoom(), 9), { animate: true });
-        return;
-      }
-
-      const bounds = L.latLngBounds(points);
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: activeMap === 'mars' ? 10 : 15, animate: true });
-    }, [map, points]);
-
-    return null;
-  }
-
-  const capasRutas = useMemo(() => {
-    return rutas
-      .map((ruta) => {
-        const puntos = Array.isArray(ruta.puntos_json)
-          ? ruta.puntos_json
-              .map((p) => [Number(p?.lat), Number(p?.lon)])
-              .filter((p) => !isNaN(p[0]) && !isNaN(p[1]))
-          : [];
-
-        if (puntos.length < 2) {
-          return null;
+      map.current.addSource('inyeccion-puntos', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }});
+      map.current.addLayer({
+        id: 'inyeccion-puntos-layer',
+        type: 'circle',
+        source: 'inyeccion-puntos',
+        paint: {
+          'circle-radius': 2.5,
+          'circle-color': '#5af7cf',
+          'circle-opacity': 0.95,
+          'circle-stroke-width': 0,
         }
+      });
 
-        // Inferir si la ruta es de la Tierra (Chihuahua) basado en el primer punto
-        const firstPoint = puntos[0];
-        const isEarth = firstPoint[0] >= 25 && firstPoint[0] <= 32 && firstPoint[1] >= -110 && firstPoint[1] <= -100;
-        
-        if (activeMap === 'earth' && !isEarth) return null;
-        if (activeMap === 'mars' && isEarth) return null;
+      map.current.addSource('inyeccion-historial', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }});
+      map.current.addLayer({
+        id: 'inyeccion-historial-layer',
+        type: 'circle',
+        source: 'inyeccion-historial',
+        paint: {
+          'circle-radius': 2.5,
+          'circle-color': '#5af7cf',
+          'circle-opacity': 0.55,
+          'circle-stroke-width': 0,
+        }
+      });
 
-        return {
-          id: ruta.id,
-          estado: ruta.estado,
-          puntos,
-        };
-      })
-      .filter(Boolean);
-  }, [rutas, activeMap]);
-
-  const selectedRoute = useMemo(() => {
-    return capasRutas.find((ruta) => ruta.id === selectedRouteId) || null;
-  }, [capasRutas, selectedRouteId]);
-
-  const capasRobots = useMemo(() => {
-    return robots.filter((robot) => {
-      const lat = Number(robot.latitud_marte);
-      const lon = Number(robot.longitud_marte);
-      if (isNaN(lat) || isNaN(lon)) return false;
-      const isEarth = lat >= 25 && lat <= 32 && lon >= -110 && lon <= -100;
-      if (activeMap === 'earth' && !isEarth) return false;
-      if (activeMap === 'mars' && isEarth) return false;
-      return true;
+      map.current.addSource('robots-demo', { type: 'geojson', data: getDemoRobotCollection() });
+      map.current.addLayer({
+        id: 'robots-demo-points',
+        type: 'circle',
+        source: 'robots-demo',
+        paint: {
+          'circle-radius': 8,
+          'circle-color': ['coalesce', ['get', 'color'], '#5af7cf'],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#111827',
+        },
+      });
+      map.current.addLayer({
+        id: 'robots-demo-labels',
+        type: 'symbol',
+        source: 'robots-demo',
+        layout: {
+          'text-field': ['concat', ['get', 'nombre'], ' · ', ['get', 'estadoLabel']],
+          'text-size': 12,
+          'text-offset': [0, 1.25],
+          'text-anchor': 'top',
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#111111',
+          'text-halo-width': 1.2,
+        },
+      });
     });
-  }, [robots, activeMap]);
-
-  const capasBiopolimeros = useMemo(() => {
-    return biopolimeros.filter((bio) => {
-      const lat = Number(bio.latitud_marte);
-      const lon = Number(bio.longitud_marte);
-      if (isNaN(lat) || isNaN(lon)) return false;
-      const isEarth = lat >= 25 && lat <= 32 && lon >= -110 && lon <= -100;
-      if (activeMap === 'earth' && !isEarth) return false;
-      if (activeMap === 'mars' && isEarth) return false;
-      return true;
-    });
-  }, [biopolimeros, activeMap]);
-
-  const visibleGeneratedRoute = useMemo(() => {
-    if (generatedRoutePoints.length === 0) return false;
-    const firstPoint = generatedRoutePoints[0];
-    const isEarth = firstPoint[0] >= 25 && firstPoint[0] <= 32 && firstPoint[1] >= -110 && firstPoint[1] <= -100;
-    if (activeMap === 'earth' && !isEarth) return false;
-    if (activeMap === 'mars' && isEarth) return false;
-    return true;
-  }, [generatedRoutePoints, activeMap]);
-
-  useEffect(() => {
-    cargarCapas();
-    const interval = setInterval(cargarCapas, 15000);
-    return () => clearInterval(interval);
   }, []);
 
-  // React to a newly generated route: show polyline and prepare animation
   useEffect(() => {
-    if (!generatedRoute || !Array.isArray(generatedRoute.puntos_json)) return;
-    const pts = generatedRoute.puntos_json.map((p) => [p.lat, p.lon]);
-    if (pts.length === 0) return;
-    animRef.current.positions = pts;
-    animRef.current.idx = 0;
-    setAnimPos(pts[0]);
-    setSelectedRouteId(generatedRoute.id);
-  }, [generatedRoute]);
+    if (!map.current || !map.current.isStyleLoaded()) return;
 
-  async function cargarCapas() {
-    try {
-      setMapError('');
-
-      const [robotsData, rutasData, biopolimerosData, zonasData] = await Promise.all([
-        apiService.getRobots(),
-        apiService.getRutas(),
-        apiService.getBiopolimeros(),
-        apiService.getZonasToxicas(),
-      ]);
-
-      setRobots(Array.isArray(robotsData) ? robotsData : []);
-      setRutas(Array.isArray(rutasData) ? rutasData : []);
-      setBiopolimeros(Array.isArray(biopolimerosData) ? biopolimerosData : []);
-      setZonasToxicas(Array.isArray(zonasData) ? zonasData : []);
-      setLastUpdate(new Date().toLocaleTimeString());
-
-      if (activeMap === 'mars') {
-        const firstRobot = (Array.isArray(robotsData) ? robotsData : []).find(
-          (r) => typeof r.latitud_marte === 'number' && typeof r.longitud_marte === 'number'
-        );
-
-        if (firstRobot) {
-          setManualCenter([firstRobot.latitud_marte, firstRobot.longitud_marte]);
-        }
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Error desconocido de mapa';
-      setMapError(msg);
+    const robotsSource = map.current.getSource('robots-demo');
+    if (robotsSource) {
+      robotsSource.setData(getDemoRobotCollection());
     }
-  }
 
-  function colorRuta(estado) {
-    if (estado === 'completada') return '#ffc107';
-    if (estado === 'en-progreso') return '#47d6ff';
-    if (estado === 'cancelada') return '#ff7070';
-    return '#ff8a2b';
-  }
+    const visibility = activeMap === 'earth' ? 'visible' : 'none';
+    if (map.current.getLayer('robots-demo-points')) map.current.setLayoutProperty('robots-demo-points', 'visibility', visibility);
+    if (map.current.getLayer('robots-demo-labels')) map.current.setLayoutProperty('robots-demo-labels', 'visibility', visibility);
+  }, [activeMap, refreshToken, robots]);
 
-  function colorRutaGenerada() {
-    if (routeStatus === 'completada') return '#ffc107';
-    if (routeStatus === 'en-progreso') return '#47d6ff';
-    return '#ffd24d';
-  }
-
-  function colorPorIndice(index, selected = false) {
-    const palette = ['#ffc107', '#47d6ff', '#ffd24d', '#ff8a2b', '#b08cff', '#ff7070'];
-    return selected ? '#ffffff' : palette[index % palette.length];
-  }
-
-  function focusRoute(route) {
-    if (!route || !Array.isArray(route.puntos) || route.puntos.length === 0) return;
-    setSelectedRouteId(route.id);
-    setManualCenter(route.puntos[0]);
-  }
-
-  // Effect to reload when external refresh token changes
   useEffect(() => {
-    if (refreshToken > 0) cargarCapas();
-  }, [refreshToken]);
+    if (!map.current || !map.current.isStyleLoaded()) return;
 
-  const activeZonas = useMemo(() => {
-    return zonasToxicas.filter(z => {
-      const isEarth = z.latitud >= 25 && z.latitud <= 32 && z.longitud >= -110 && z.longitud <= -100;
-      return activeMap === 'earth' ? isEarth : !isEarth;
-    });
-  }, [zonasToxicas, activeMap]);
+    if (activeMap === 'mars') {
+      map.current.setLayoutProperty('mars-layer', 'visibility', 'visible');
+      map.current.flyTo({ center: [137.4, -4.6], zoom: 6, essential: true });
+    } else {
+      map.current.setLayoutProperty('mars-layer', 'visibility', 'none');
+      map.current.flyTo({ center: chihuahuaRuralCenter, zoom: chihuahuaRuralZoom, essential: true });
+    }
 
-  // Network lines calculation for biopolymers
-  const redBiologica = useMemo(() => {
-    const lines = [];
-    const maxDist = 0.5; // Umbral de conexion en grados
-    for (let i = 0; i < capasBiopolimeros.length; i++) {
-      for (let j = i + 1; j < capasBiopolimeros.length; j++) {
-        const b1 = capasBiopolimeros[i];
-        const b2 = capasBiopolimeros[j];
-        const dLat = Number(b1.latitud_marte) - Number(b2.latitud_marte);
-        const dLon = Number(b1.longitud_marte) - Number(b2.longitud_marte);
-        const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-        if (dist < maxDist) {
-          lines.push([[Number(b1.latitud_marte), Number(b1.longitud_marte)], [Number(b2.latitud_marte), Number(b2.longitud_marte)]]);
+    if (draw.current) {
+        setTimeout(() => {
+            try {
+              draw.current.changeMode('draw_polygon');
+            } catch (error) {}
+        }, 1000);
+    }
+  }, [activeMap]);
+
+  useEffect(() => {
+    if (!draw.current || !map.current) return;
+    
+    if (isAnalyzing && frozenPolygonFeature) {
+      draw.current.changeMode('simple_select');
+      if (map.current.hasControl(draw.current)) map.current.removeControl(draw.current);
+      const injectedPolygon = {
+        ...frozenPolygonFeature,
+        properties: {
+          ...(frozenPolygonFeature.properties ?? {}),
+          injectedAt: Date.now(),
+        },
+      };
+
+      setFrozenPolygonHistory((previousHistory) => {
+        const nextHistory = [...previousHistory, injectedPolygon];
+        syncFrozenPolygonLayer(nextHistory);
+        return nextHistory;
+      });
+    }
+
+    if (!isAnalyzing) {
+      try { if (!map.current.hasControl(draw.current)) map.current.addControl(draw.current); } catch(e) {}
+      try { draw.current.changeMode('draw_polygon'); } catch(e) {}
+    }
+  }, [isAnalyzing, frozenPolygonFeature]);
+
+  useEffect(() => {
+    if (routeStatus === 'planificada' && generatedRoute?.puntos_json) {
+      const puntos = generatedRoute.puntos_json.map(p => [Number(p.lon), Number(p.lat)]);
+      if (puntos.length < 2) return;
+      const rutaFeature = { type: 'Feature', geometry: { type: 'LineString', coordinates: puntos } };
+      if (map.current.getSource('ruta-inyeccion')) map.current.getSource('ruta-inyeccion').setData(rutaFeature);
+      if (map.current.getSource('inyeccion-puntos')) map.current.getSource('inyeccion-puntos').setData({ type: 'FeatureCollection', features: [] });
+      if (map.current.getSource('robot-animado')) map.current.getSource('robot-animado').setData({ type: 'FeatureCollection', features: [] });
+      inyeccionRef.current = { type: 'FeatureCollection', features: [] };
+
+      let index = 0;
+      const animarRover = () => {
+        if (index < puntos.length) {
+          if (map.current.getSource('robot-animado')) map.current.getSource('robot-animado').setData({ type: 'Feature', geometry: { type: 'Point', coordinates: puntos[index] }});
+          const puntoFeature = { type: 'Feature', geometry: { type: 'Point', coordinates: puntos[index] } };
+          if (inyeccionRef.current) {
+            const nextFeatures = [...inyeccionRef.current.features, puntoFeature];
+            inyeccionRef.current = { type: 'FeatureCollection', features: nextFeatures };
+            if (map.current.getSource('inyeccion-puntos')) map.current.getSource('inyeccion-puntos').setData(inyeccionRef.current);
+          }
+          index++;
+          animacionRef.current = setTimeout(animarRover, 420); 
+        } else {
+          setRouteHistoryFeatures((previousRoutes) => {
+            const nextRoutes = [...previousRoutes, rutaFeature];
+            if (map.current.getSource('ruta-historial')) {
+              map.current.getSource('ruta-historial').setData({ type: 'FeatureCollection', features: nextRoutes });
+            }
+            return nextRoutes;
+          });
+          setInjectionHistoryFeatures((previousPoints) => {
+            const nextPoints = [
+              ...previousPoints,
+              ...(inyeccionRef.current?.features ?? []),
+            ];
+            if (map.current.getSource('inyeccion-historial')) {
+              map.current.getSource('inyeccion-historial').setData({ type: 'FeatureCollection', features: nextPoints });
+            }
+            return nextPoints;
+          });
+          if (map.current.getSource('ruta-inyeccion')) map.current.getSource('ruta-inyeccion').setData({ type: 'FeatureCollection', features: [] });
+          if (map.current.getSource('inyeccion-puntos')) map.current.getSource('inyeccion-puntos').setData({ type: 'FeatureCollection', features: [] });
+          if (map.current.getSource('robot-animado')) map.current.getSource('robot-animado').setData({ type: 'FeatureCollection', features: [] });
+          inyeccionRef.current = { type: 'FeatureCollection', features: [] };
+          if (onRouteCompleted) onRouteCompleted();
         }
-      }
+      };
+      animarRover();
+      return () => { if (animacionRef.current) clearTimeout(animacionRef.current); };
     }
-    return lines;
-  }, [capasBiopolimeros]);
+  }, [generatedRoute, routeStatus, onRouteCompleted]);
 
-  async function deleteRoute(routeId) {
-    const confirmDelete = window.confirm(`Eliminar la ruta #${routeId}? Esta acción no se puede deshacer.`);
-    if (!confirmDelete) return;
-
-    try {
-      setRouteActionError('');
-      await apiService.eliminarRuta(routeId);
-      setRutas((prev) => prev.filter((ruta) => ruta.id !== routeId));
-
-      if (selectedRouteId === routeId) {
-        setSelectedRouteId(null);
-        setManualCenter(null);
-      }
-
-      if (generatedRoute && generatedRoute.id === routeId) {
-        onRouteCompleted && onRouteCompleted(generatedRoute);
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'No se pudo eliminar la ruta';
-      setRouteActionError(msg);
-    }
+  if (mapError) {
+    return <div style={{ width: '100%', height: '100%', borderRadius: '8px', display: 'grid', placeItems: 'center', textAlign: 'center', padding: '1rem' }}>{mapError}</div>;
   }
 
-  return (
-    <div className="mars-map-wrap">
-      <div className="panel-header">
-        <h2>{config.title}</h2>
-        <div className="map-actions">
-          <div className="map-switch" role="tablist" aria-label="Selector de mapa">
-            <button
-              type="button"
-              className={`map-switch-btn ${activeMap === 'mars' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveMap('mars');
-                setManualCenter(null);
-              }}
-            >
-              Marte
-            </button>
-            <button
-              type="button"
-              className={`map-switch-btn ${activeMap === 'earth' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveMap('earth');
-                setManualCenter(null);
-              }}
-            >
-              Chihuahua
-            </button>
-          </div>
-          <button className="btn-soft" onClick={cargarCapas} type="button">
-            Actualizar
-          </button>
-          <button
-            className="btn-soft"
-            type="button"
-            onClick={() => {
-              setManualCenter(null);
-              setSelectedRouteId(null);
-              setLastUpdate(new Date().toLocaleTimeString());
-            }}
-          >
-            Reset
-          </button>
-          {generatedRoute && (
-            <div style={{ marginLeft: 12 }}>
-              <button
-                className="btn-primary"
-                onClick={async () => {
-                  try {
-                    await apiService.iniciarRuta(generatedRoute.id);
-                  } catch (e) {
-                    console.warn('No se pudo iniciar ruta en backend', e);
-                  }
-
-                  if (!animRef.current.positions || animRef.current.positions.length === 0) return;
-                  if (animRef.current.intervalId) clearInterval(animRef.current.intervalId);
-                  animRef.current.idx = 0;
-                  const pointsCount = animRef.current.positions.length;
-                  const estimatedRouteSeconds = Number(generatedRoute.tiempo_estimado) || pointsCount * 8;
-                  const secondsPerPoint = estimatedRouteSeconds / pointsCount;
-                  const stepMs = Math.max(350, Math.min(1500, Math.round((secondsPerPoint * 1000) / simulationTimeScale)));
-                  animRef.current.intervalId = setInterval(async () => {
-                    const idx = ++animRef.current.idx;
-                    if (idx >= animRef.current.positions.length) {
-                      clearInterval(animRef.current.intervalId);
-                      animRef.current.intervalId = null;
-                      setAnimPos(null);
-                      try {
-                        await apiService.completarRuta(generatedRoute.id);
-                      } catch (e) {
-                        console.warn('No se pudo completar ruta en backend', e);
-                      }
-                      onRouteCompleted && onRouteCompleted(generatedRoute);
-                      return;
-                    }
-                    setAnimPos(animRef.current.positions[idx]);
-                  }, stepMs);
-                }}
-              >
-                Iniciar simulación
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="mars-map-frame">
-        <MapContainer
-          key={activeMap}
-          center={mapCenter}
-          zoom={config.zoom}
-          minZoom={config.minZoom}
-          maxZoom={config.maxZoom}
-          maxBounds={config.bounds}
-          maxBoundsViscosity={1.0}
-          crs={config.crs}
-          scrollWheelZoom={true}
-          className="mars-map"
-        >
-          <TileLayer
-            url={config.tileUrl}
-            attribution={config.attribution}
-            noWrap={config.noWrap}
-            bounds={config.bounds}
-            maxNativeZoom={config.maxNativeZoom}
-          />
-
-          {visibleGeneratedRoute && <RouteAutoFocus points={generatedRoutePoints} />}
-
-          <>
-            {/* Zonas Toxicas */}
-            {activeZonas.map(zona => (
-              <Circle
-                key={`zona-${zona.id}`}
-                center={[zona.latitud, zona.longitud]}
-                radius={zona.radio * 111000} // Aprox km a metros si el radio esta en grados (1 grado ~ 111km)
-                pathOptions={{
-                  color: '#ff3a5d',
-                  fillColor: '#ff0033',
-                  fillOpacity: 0.35,
-                  weight: 2,
-                  dashArray: '10 10'
-                }}
-              >
-                <Tooltip>Zona Tóxica! Peligro: {zona.nivel_toxicidad}%</Tooltip>
-              </Circle>
-            ))}
-
-            {/* Red Biologica */}
-            {redBiologica.map((linePoints, idx) => (
-              <Polyline 
-                key={`red-${idx}`} 
-                positions={linePoints} 
-                pathOptions={{ color: '#e2d5c4', weight: 1.5, opacity: 0.4, dashArray: '4 4' }} 
-              />
-            ))}
-
-            {capasRobots.map((robot, idx) => {
-              const iconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="${colorPorIndice(idx)}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${colorPorIndice(idx)}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`;
-              const robotIcon = L.divIcon({ html: iconSvg, className: 'custom-robot-icon', iconSize: [28, 28], iconAnchor: [14, 14] });
-              return (
-                <Marker
-                    key={`robot-${robot.id}`}
-                    position={[robot.latitud_marte, robot.longitud_marte]}
-                    icon={robotIcon}
-                  >
-                    <Tooltip direction="top" offset={[0, -14]} opacity={1}>
-                      <div className="map-tooltip">
-                        <strong>{robot.nombre}</strong>
-                        <p>Estado: {robot.estado}</p>
-                        <p>Bateria: {robot.bateria}%</p>
-                      </div>
-                    </Tooltip>
-                  </Marker>
-                );
-              })}
-
-              {capasRutas.map((ruta, index) => (
-                <Polyline
-                  key={`ruta-${ruta.id}`}
-                  positions={ruta.puntos}
-                  eventHandlers={{ click: () => focusRoute(ruta) }}
-                  pathOptions={{
-                    color: colorPorIndice(index, selectedRouteId === ruta.id),
-                    weight: selectedRouteId === ruta.id ? 6 : 4,
-                    opacity: selectedRouteId && selectedRouteId !== ruta.id ? 0.35 : 0.92,
-                    dashArray: ruta.estado === 'planificada' ? '8 8' : undefined,
-                  }}
-                >
-                  <Tooltip sticky>
-                    Ruta #{ruta.id} - {ruta.estado}
-                  </Tooltip>
-                </Polyline>
-              ))}
-
-              {capasBiopolimeros.map((bio) => {
-                return (
-                  <CircleMarker
-                    key={`bio-${bio.id}`}
-                    center={[bio.latitud_marte, bio.longitud_marte]}
-                    radius={5}
-                    pathOptions={{
-                      color: '#e2d5c4',
-                      fillColor: '#e2d5c4',
-                      fillOpacity: 0.65,
-                      weight: 1,
-                    }}
-                  >
-                    <Tooltip>
-                      Biopolímero #{bio.id} - crecimiento {bio.nivel_crecimiento}%
-                    </Tooltip>
-                  </CircleMarker>
-                );
-              })}
-
-              {/* Generated route preview and animated marker */}
-              {visibleGeneratedRoute && (
-                <>
-                  <Polyline
-                    key={`generated-ruta-${generatedRoute.id}`}
-                    positions={generatedRoutePoints}
-                    pathOptions={{ color: colorRutaGenerada(), weight: 4, dashArray: routeStatus === 'completada' ? undefined : '6 6', opacity: 0.95 }}
-                  />
-
-                  {generatedRoutePoints.map((point, index) => {
-                    const isStart = index === 0;
-                    const isEnd = index === generatedRoutePoints.length - 1;
-                    return (
-                      <CircleMarker
-                        key={`generated-point-${index}`}
-                        center={point}
-                        radius={isStart || isEnd ? 6 : 3}
-                        pathOptions={{
-                          color: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
-                          fillColor: isStart ? '#e2d5c4' : isEnd ? '#ff8a2b' : '#ffd24d',
-                          fillOpacity: 0.95,
-                          weight: 1,
-                        }}
-                      >
-                        <Tooltip>
-                          {isStart ? 'Inicio de ruta' : isEnd ? 'Fin de ruta' : `Punto de ruta ${index + 1}`}
-                        </Tooltip>
-                      </CircleMarker>
-                    );
-                  })}
-
-                  {interactionPoints.map(({ point, index, bio }) => (
-                    <CircleMarker
-                      key={`interaction-${bio.id}-${index}`}
-                      center={point}
-                      radius={8}
-                      pathOptions={{
-                        color: '#ffc107',
-                        fillColor: '#ffc107',
-                        fillOpacity: 0.9,
-                        weight: 2,
-                      }}
-                    >
-                      <Tooltip>
-                        Interacción robot-biopolímero #{bio.id} en punto {index + 1}
-                      </Tooltip>
-                    </CircleMarker>
-                  ))}
-
-                  {animPos && (
-                    <Marker
-                      position={animPos}
-                      icon={L.divIcon({
-                        html: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorRutaGenerada()}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="background:#111827;border-radius:50%;padding:2px;border:2px solid ${colorRutaGenerada()}"><rect x="3" y="11" width="18" height="10" rx="2" /><circle cx="12" cy="5" r="2" /><path d="M12 7v4" /><line x1="8" y1="16" x2="8" y2="16" /><line x1="16" y1="16" x2="16" y2="16" /></svg>`,
-                        className: 'custom-robot-icon-anim',
-                        iconSize: [34, 34],
-                        iconAnchor: [17, 17]
-                      })}
-                    />
-                  )}
-                </>
-              )}
-          </>
-
-          {activeMap === 'earth' && (
-            <>
-              <CircleMarker
-                center={[28.6353, -106.0889]}
-                radius={9}
-                pathOptions={{ color: '#ffd2a8', fillColor: '#ff8a2b', fillOpacity: 0.95, weight: 2 }}
-              >
-                <Tooltip>
-                  Chihuahua - Nodo principal de remediación
-                </Tooltip>
-              </CircleMarker>
-              <Circle
-                center={[28.6353, -106.0889]}
-                radius={45000}
-                pathOptions={{ color: '#5af7cf', fillColor: '#5af7cf', fillOpacity: 0.08, weight: 2 }}
-              >
-                <Tooltip>Zona piloto de monitoreo y fitorremediación</Tooltip>
-              </Circle>
-            </>
-          )}
-        </MapContainer>
-
-        <div className="map-overlay-info">
-          <span>Modo: {config.label}</span>
-          <span>Robots: {capasRobots.length}</span>
-          <span>Rutas: {capasRutas.length}</span>
-          <span>Biopolímeros: {capasBiopolimeros.length}</span>
-          {generatedRoute && <span>Ruta: {routeStatus}</span>}
-          {generatedRoute && <span>Sim: x{simulationTimeScale}</span>}
-          <span>Última actualización: {lastUpdate || '---'}</span>
-        </div>
-      </div>
-
-      {capasRutas.length > 0 && (
-        <div className="route-selector-panel">
-          <div className="route-selector-header">
-            <strong>Rutas disponibles</strong>
-            <button
-              type="button"
-              className="btn-soft small"
-              onClick={() => {
-                setSelectedRouteId(null);
-                setManualCenter(null);
-              }}
-            >
-              Ver todas
-            </button>
-          </div>
-
-          <div className="route-selector-list">
-            {capasRutas.map((ruta, index) => {
-              const isSelected = selectedRouteId === ruta.id;
-              return (
-                <div key={ruta.id} className="route-chip-row">
-                  <button
-                    type="button"
-                    className={`route-chip ${isSelected ? 'selected' : ''}`}
-                    onClick={() => focusRoute(ruta)}
-                  >
-                    <span className="route-chip-dot" style={{ background: colorPorIndice(index, isSelected) }} />
-                    <span>Ruta #{ruta.id}</span>
-                    <span>{ruta.estado}</span>
-                    <span>{ruta.puntos.length} pts</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-soft small ghost"
-                    onClick={() => deleteRoute(ruta.id)}
-                    aria-label={`Eliminar ruta ${ruta.id}`}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {routeActionError && <p className="state-msg error">{routeActionError}</p>}
-      {mapError && <p className="state-msg error">Error de mapa: {mapError}</p>}
-      <p className="state-msg">
-        {generatedRoute
-          ? `Ruta activa #${generatedRoute.id} en estado ${routeStatus}.`
-          : 'Genera una ruta para verla y simularla aquí.'}
-      </p>
-    </div>
-  );
+  return <div ref={mapContainer} style={{ width: '100%', height: '100%', borderRadius: '8px' }} />;
 }
