@@ -4,6 +4,7 @@ import MapboxDraw from '@mapbox/mapbox-gl-draw';
 import * as turf from '@turf/turf';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
+import mycoLogo from '../assets/myco.png';
 
 const mapboxAccessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 const mapStyleUrl = 'mapbox://styles/mapbox/satellite-streets-v12';
@@ -23,12 +24,19 @@ export function MapaMarte({
   onRouteCompleted = () => {},
   refreshToken = 0,
   setArea,
+  polygonCoords,
   setPolygonCoords,
   isAnalyzing = false,
   robots = [],
+  onHeatmapGenerated,
+  simulationHeatmapGrid,
+  simulationRovers = [],
+  simulationRoutesFull = [],
+  simulationInjectedCapsules = [],
 }) {
   const mapContainer = useRef(null);
   const map = useRef(null);
+  const simulationMarkersRef = useRef({});
   const draw = useRef(null);
   const drawAddedRef = useRef(false);
   const animacionRef = useRef(null);
@@ -108,6 +116,7 @@ export function MapaMarte({
       if (map.current.getSource('ruta-inyeccion')) map.current.getSource('ruta-inyeccion').setData({ type: 'FeatureCollection', features: [] });
       if (map.current.getSource('robot-animado')) map.current.getSource('robot-animado').setData({ type: 'FeatureCollection', features: [] });
       if (map.current.getSource('inyeccion-puntos')) map.current.getSource('inyeccion-puntos').setData({ type: 'FeatureCollection', features: [] });
+      if (map.current.getSource('heatmap-toxicity')) map.current.getSource('heatmap-toxicity').setData({ type: 'FeatureCollection', features: [] });
       inyeccionRef.current = { type: 'FeatureCollection', features: [] };
     });
 
@@ -116,6 +125,38 @@ export function MapaMarte({
       map.current.addLayer({ id: 'mars-layer', type: 'raster', source: 'mars-tiles', layout: { visibility: activeMap === 'mars' ? 'visible' : 'none' } });
 
       map.current.getCanvasContainer().style.cursor = 'crosshair';
+
+      map.current.addSource('heatmap-toxicity', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      map.current.addLayer({
+        id: 'heatmap-layer',
+        type: 'circle',
+        source: 'heatmap-toxicity',
+        maxzoom: 18,
+        paint: {
+          'circle-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 10,
+            7, 30,
+            18, 150
+          ],
+          'circle-blur': 0.8,
+          'circle-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'toxicity'],
+            0.0, 'rgba(34, 197, 94, 0.05)',
+            0.1, 'rgba(34, 197, 94, 0.5)',
+            0.5, 'rgba(234, 179, 8, 0.6)',
+            1.0, 'rgba(239, 68, 68, 0.7)'
+          ],
+          'circle-opacity': 0.7
+        }
+      });
 
       map.current.addSource('ruta-inyeccion', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: 'linea-ruta', type: 'line', source: 'ruta-inyeccion', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#5af7cf', 'line-width': 4, 'line-dasharray': [2,2] } });
@@ -131,6 +172,12 @@ export function MapaMarte({
 
       map.current.addSource('inyeccion-historial', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       map.current.addLayer({ id: 'inyeccion-historial-layer', type: 'circle', source: 'inyeccion-historial', paint: { 'circle-radius':2.5,'circle-color':'#5af7cf','circle-opacity':0.55,'circle-stroke-width':0 } });
+
+      map.current.addSource('sim-routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({ id: 'sim-routes-layer', type: 'line', source: 'sim-routes', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#5af7cf', 'line-width': 2, 'line-dasharray': [2, 4], 'line-opacity': 0.8 } });
+
+      map.current.addSource('sim-capsules', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.current.addLayer({ id: 'sim-capsules-layer', type: 'circle', source: 'sim-capsules', paint: { 'circle-radius': 3.5, 'circle-color': '#ff4500', 'circle-opacity': 0.9, 'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' } });
 
       map.current.addSource('robots-demo', { type: 'geojson', data: getDemoRobotCollection() });
       map.current.addLayer({ id: 'robots-demo-points', type: 'circle', source: 'robots-demo', paint: { 'circle-radius':8, 'circle-color':['coalesce',['get','color'],'#5af7cf'],'circle-stroke-width':2,'circle-stroke-color':'#111827' } });
@@ -152,7 +199,7 @@ export function MapaMarte({
     if (map.current.getLayer('robots-demo-labels')) map.current.setLayoutProperty('robots-demo-labels','visibility',visibility);
 
     if (map.current.getLayer('mars-layer')) {
-      if (activeMap === 'mars') { map.current.setLayoutProperty('mars-layer','visibility','visible'); map.current.flyTo({ center: [137.4,-4.6], zoom: 6, essential: true }); }
+      if (activeMap === 'mars') { map.current.setLayoutProperty('mars-layer','visibility','visible'); map.current.flyTo({ center: [77.45, 18.44], zoom: 7.0, essential: true }); }
       else { map.current.setLayoutProperty('mars-layer','visibility','none'); map.current.flyTo({ center: chihuahuaRuralCenter, zoom: chihuahuaRuralZoom, essential: true }); }
     }
 
@@ -178,6 +225,55 @@ export function MapaMarte({
       if (frozenPolygonHistory.length > 0) syncFrozenPolygonLayer(frozenPolygonHistory);
     }
   }, [isAnalyzing, frozenPolygonFeature]);
+
+  useEffect(() => {
+    if (!draw.current || !map.current) return;
+    
+    const source = map.current.getSource('heatmap-toxicity');
+
+    if (!polygonCoords) {
+      if (source) source.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+    
+    const currentCoords = frozenPolygonFeature?.geometry?.coordinates;
+    if (JSON.stringify(polygonCoords) !== JSON.stringify(currentCoords)) {
+      const feature = {
+        type: 'Feature',
+        geometry: { type: 'Polygon', coordinates: polygonCoords },
+        properties: {}
+      };
+      draw.current.deleteAll();
+      draw.current.add(feature);
+      setFrozenPolygonFeature(feature);
+      
+      try {
+        const bbox = turf.bbox(feature);
+        map.current.fitBounds(bbox, { padding: 40, duration: 2000, maxZoom: activeMap === 'mars' ? 7 : 17 });
+      } catch (e) {
+        console.error("Could not fit bounds to polygon", e);
+      }
+    }
+
+    if (source) {
+      try {
+        const poly = turf.polygon(polygonCoords);
+        const bbox = turf.bbox(poly);
+        const width = turf.distance([bbox[0], bbox[1]], [bbox[2], bbox[1]], { units: 'kilometers' });
+        const cellSide = width / 12;
+        const grid = turf.pointGrid(bbox, cellSide, { mask: poly, units: 'kilometers' });
+        grid.features.forEach((f) => {
+          f.properties = {
+            toxicity: Math.random()
+          };
+        });
+        source.setData(grid);
+        if (onHeatmapGenerated) onHeatmapGenerated(grid);
+      } catch (e) {
+        console.error("Error generating heatmap grid", e);
+      }
+    }
+  }, [polygonCoords]);
 
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
@@ -223,6 +319,66 @@ export function MapaMarte({
     animarRover();
     return () => { if (animacionRef.current) clearTimeout(animacionRef.current); };
   }, [generatedRoute, routeStatus, onRouteCompleted]);
+
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded() || !simulationHeatmapGrid) return;
+    const source = map.current.getSource('heatmap-toxicity');
+    if (source) source.setData(simulationHeatmapGrid);
+  }, [simulationHeatmapGrid]);
+
+  useEffect(() => {
+    if (!map.current) return;
+    
+    simulationRovers.forEach(rover => {
+      if (!simulationMarkersRef.current[rover.id]) {
+        const el = document.createElement('div');
+        el.style.backgroundImage = `url(${mycoLogo})`;
+        el.style.width = '30px';
+        el.style.height = '30px';
+        el.style.backgroundSize = 'contain';
+        el.style.backgroundRepeat = 'no-repeat';
+        el.style.filter = 'drop-shadow(0 0 5px #ff4500)';
+        
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([rover.lon, rover.lat])
+          .addTo(map.current);
+        simulationMarkersRef.current[rover.id] = marker;
+      } else {
+        simulationMarkersRef.current[rover.id].setLngLat([rover.lon, rover.lat]);
+      }
+    });
+
+    Object.keys(simulationMarkersRef.current).forEach(id => {
+      if (!simulationRovers.find(r => String(r.id) === String(id))) {
+        simulationMarkersRef.current[id].remove();
+        delete simulationMarkersRef.current[id];
+      }
+    });
+  }, [simulationRovers]);
+
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('sim-routes');
+    if (source) {
+      const features = simulationRoutesFull.filter(r => r.length >= 2).map(r => ({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: r.map(p => [Number(p.lon), Number(p.lat)]) }
+      }));
+      source.setData({ type: 'FeatureCollection', features });
+    }
+  }, [simulationRoutesFull]);
+
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    const source = map.current.getSource('sim-capsules');
+    if (source) {
+      const features = simulationInjectedCapsules.map(p => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [Number(p.lon), Number(p.lat)] }
+      }));
+      source.setData({ type: 'FeatureCollection', features });
+    }
+  }, [simulationInjectedCapsules]);
 
   if (mapError) return <div style={{ width:'100%', height:'100%', display:'grid', placeItems:'center' }}>{mapError}</div>;
 
