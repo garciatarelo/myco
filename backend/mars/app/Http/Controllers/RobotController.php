@@ -13,13 +13,20 @@ class RobotController extends Controller
     /**
      * GET /api/robots - Listar todos los robots con relaciones
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $robots = Robot::with(['terreno', 'estacionBase', 'rutas', 'sensores'])
-            ->withCount(['mediciones', 'inyecciones'])
-            ->get();
+        $query = Robot::with(['terreno', 'estacionBase', 'rutas', 'sensores'])
+            ->withCount(['mediciones', 'inyecciones']);
 
-        return response()->json($robots);
+        if ($request->has('terreno_id')) {
+            $query->where('terreno_id', $request->input('terreno_id'));
+        }
+
+        if ($request->has('modo')) {
+            $query->where('modo', $request->input('modo'));
+        }
+
+        return response()->json($query->get());
     }
 
     /**

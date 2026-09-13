@@ -25,7 +25,7 @@ export function EnergyPanel() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
         {/* Sizing Solar Panel Calculator */}
-        <div className="sub-panel panel" style={{ padding: '20px', background: '#080a0e', borderColor: 'var(--line)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div className="sub-panel panel" style={{ padding: '20px', background: 'var(--panel)', borderColor: 'var(--line)', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <h3 style={{ margin: 0, fontSize: '0.95rem', textTransform: 'uppercase', color: 'var(--text)', letterSpacing: '0.5px' }}>
             Dimensionamiento Fotovoltaico (Chihuahua)
           </h3>
@@ -86,7 +86,7 @@ export function EnergyPanel() {
         </div>
 
         {/* Commercial Feasibility Comparison */}
-        <div className="sub-panel panel" style={{ padding: '20px', background: '#080a0e', borderColor: 'var(--line)', display: 'flex', flexDirection: 'column', justifyBetween: 'space-between' }}>
+        <div className="sub-panel panel" style={{ padding: '20px', background: 'var(--panel)', borderColor: 'var(--line)', display: 'flex', flexDirection: 'column', justifyBetween: 'space-between' }}>
           <h3 style={{ margin: '0 0 10px', fontSize: '0.95rem', textTransform: 'uppercase', color: 'var(--text)', letterSpacing: '0.5px' }}>
             Análisis de Viabilidad Financiera y Transición
           </h3>

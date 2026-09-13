@@ -396,7 +396,7 @@ export default function Home() {
 
   /* ─── Render ─── */
   return (
-    <div className="fixed inset-0 bg-black text-white font-mono overflow-hidden flex flex-col">
+    <div className="relative w-full h-[calc(100vh-64px)] bg-[#131313] text-white font-mono overflow-hidden flex flex-col">
       {/* ── Background Map ── */}
       <div className="absolute inset-0 z-0 opacity-80 pointer-events-auto">
         <MapaMarte
@@ -427,62 +427,51 @@ export default function Home() {
       {/* ── HUD Layer ── */}
       <div className="relative z-10 flex flex-col h-full pointer-events-none">
         
-        {/* Header */}
-        <header className="flex items-center gap-4 px-4 py-3 bg-black/90 backdrop-blur-md border-b border-white/10 pointer-events-auto shrink-0">
-           {/* Logo */}
-           <div className="flex items-center gap-3 pr-4 border-r border-white/10">
-             <div className="w-8 h-8 rounded-full border border-[#ff4500] overflow-hidden shrink-0 flex items-center justify-center bg-black">
-                <img src={teamLogo} alt="MYCO" className="w-full h-full object-contain grayscale sepia hover:grayscale-0 transition-all" />
-             </div>
-             <span className="text-sm font-bold text-[#ff4500] tracking-[0.2em]">M.Y.C.O</span>
+        {/* Sub-Header HUD Bar */}
+        <header className="flex items-center gap-3 px-4 py-2.5 bg-black/85 backdrop-blur-md border-b border-[#1a1f29] pointer-events-auto shrink-0">
+           {/* Active mission badge */}
+           <div className="flex items-center gap-2 pr-3 border-r border-white/10">
+             <i className="fa-solid fa-satellite text-[#ff4500] text-xs"></i>
+             <span className="text-[0.65rem] font-bold text-gray-300 tracking-wider">HUD // SIMULACIÓN</span>
            </div>
 
-           {/* Nav */}
+           {/* Nav Presets */}
            <div className="flex gap-2">
              <button 
                onClick={resetToSimulator}
-               className={`px-4 py-1 text-[0.65rem] tracking-widest border rounded transition-colors ${activeNav === 'SIMULADOR' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10' : 'border-transparent text-gray-400 hover:text-white'}`}
+               className={`px-3 py-1 text-[0.65rem] tracking-widest border rounded-lg font-mono transition-colors ${activeNav === 'SIMULADOR' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10 font-bold' : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'}`}
              >
-               SIMULADOR
+               MODO SIMULADOR
              </button>
              <button 
                onClick={() => loadPreset('P01')}
-               className={`px-4 py-1 text-[0.65rem] tracking-widest border rounded transition-colors ${activeNav === 'P01' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10' : 'border-transparent text-gray-400 hover:text-white'}`}
+               className={`px-3 py-1 text-[0.65rem] tracking-widest border rounded-lg font-mono transition-colors ${activeNav === 'P01' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10 font-bold' : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'}`}
              >
-               P01
+               P01: CHIHUAHUA
              </button>
              <button 
                onClick={() => loadPreset('P02')}
-               className={`px-4 py-1 text-[0.65rem] tracking-widest border rounded transition-colors ${activeNav === 'P02' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10' : 'border-transparent text-gray-400 hover:text-white'}`}
+               className={`px-3 py-1 text-[0.65rem] tracking-widest border rounded-lg font-mono transition-colors ${activeNav === 'P02' ? 'border-[#ff4500] text-[#ff4500] bg-[#ff4500]/10 font-bold' : 'border-white/10 text-gray-400 hover:text-white hover:bg-white/5'}`}
              >
-               P02
+               P02: MARTE JEZERO
              </button>
            </div>
 
            <div className="flex-1" />
 
-           {/* Landing Page Link */}
-           <button
-             onClick={() => navigate('/landing')}
-             className="px-4 py-1 text-[0.65rem] tracking-widest border border-transparent text-gray-400 hover:text-white hover:border-white/20 rounded transition-colors flex items-center gap-1.5"
-           >
-             <i className="fas fa-globe text-[#ff4500]"></i>
-             LANDING
-           </button>
-
            {/* Status indicators */}
-           <div className="flex items-center gap-6 text-[0.65rem]">
+           <div className="flex items-center gap-5 text-[0.65rem]">
              <div className="flex items-center gap-2">
-               <Pulse color={failsafe === 'NORMAL' ? '#ffffff' : '#ff4500'} />
-               <span className="text-gray-400 tracking-widest">SISTEMA</span>
-               <strong className={failsafe === 'NORMAL' ? 'text-white' : 'text-[#ff4500]'}>
+               <Pulse color={failsafe === 'NORMAL' ? '#22c55e' : '#ff4500'} />
+               <span className="text-gray-400 tracking-widest">ESTADO</span>
+               <strong className={failsafe === 'NORMAL' ? 'text-emerald-400 font-bold' : 'text-[#ff4500] font-bold'}>
                  {failsafe === 'NORMAL' ? 'NOMINAL' : 'ALERTA'}
                </strong>
              </div>
              <div className="text-gray-400 tracking-widest">
-               SOL <strong className="text-white ml-1">{sol}</strong>
+               SOL <strong className="text-white ml-1 font-bold">{sol}</strong>
              </div>
-             <div className="text-white font-bold text-sm w-20 text-right">
+             <div className="text-gray-300 font-bold text-xs">
                {time.toLocaleTimeString('es-MX', { hour12: false })}
              </div>
            </div>

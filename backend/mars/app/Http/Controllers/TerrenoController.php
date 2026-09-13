@@ -40,6 +40,7 @@ class TerrenoController extends Controller
             'entorno' => ['required', Rule::in(['tierra', 'marte'])],
             'latitud_central' => 'required|numeric',
             'longitud_central' => 'required|numeric',
+            'poligono_coordenadas' => 'nullable|array',
             'dimensiones_m2' => 'nullable|numeric|min:10',
             'red_wifi_ssid' => 'nullable|string',
             'red_wifi_pass' => 'nullable|string',
@@ -55,7 +56,36 @@ class TerrenoController extends Controller
      */
     public function show(Terreno $terreno): JsonResponse
     {
-        $terreno->load(['cliente', 'estacionesBase', 'robots', 'mediciones' => fn($q) => $q->latest()->limit(20)]);
+        $terreno->load([
+            'cliente',
+            'estacionesBase',
+            'robots.sensores',
+            'mediciones' => fn($q) => $q->latest('fecha_medicion')->limit(100),
+            'inyecciones' => fn($q) => $q->latest('fecha_inyeccion')->limit(100),
+        ]);
+        return response()->json($terreno);
+    }
+
+    /**
+     * PUT /api/terrenos/{id} - Actualizar terreno
+     */
+    public function update(Request $request, Terreno $terreno): JsonResponse
+    {
+        $validated = $request->validate([
+            'nombre' => 'nullable|string|max:255',
+            'descripcion' => 'nullable|string',
+            'cliente_id' => 'nullable|exists:users,id',
+            'entorno' => ['nullable', Rule::in(['tierra', 'marte'])],
+            'latitud_central' => 'nullable|numeric',
+            'longitud_central' => 'nullable|numeric',
+            'poligono_coordenadas' => 'nullable|array',
+            'dimensiones_m2' => 'nullable|numeric|min:10',
+            'red_wifi_ssid' => 'nullable|string',
+            'red_wifi_pass' => 'nullable|string',
+            'red_wifi_status' => ['nullable', Rule::in(['activa', 'inactiva', 'sin_cobertura'])],
+        ]);
+
+        $terreno->update($validated);
         return response()->json($terreno);
     }
 

@@ -17,10 +17,18 @@ class Terreno extends Model
         'entorno',
         'latitud_central',
         'longitud_central',
+        'poligono_coordenadas',
         'dimensiones_m2',
         'red_wifi_ssid',
         'red_wifi_pass',
         'red_wifi_status',
+    ];
+
+    protected $casts = [
+        'poligono_coordenadas' => 'array',
+        'latitud_central' => 'float',
+        'longitud_central' => 'float',
+        'dimensiones_m2' => 'float',
     ];
 
     public function cliente(): BelongsTo

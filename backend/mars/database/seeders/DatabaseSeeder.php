@@ -66,8 +66,15 @@ class DatabaseSeeder extends Seeder
             'descripcion' => 'Campo de remediación agrícola y expansión de red micelial con suelo fértil.',
             'cliente_id' => $cliente1->id,
             'entorno' => 'tierra',
-            'latitud_central' => 29.072967,
-            'longitud_central' => -110.955919,
+            'latitud_central' => 30.348500,
+            'longitud_central' => -107.902500,
+            'poligono_coordenadas' => [
+                [-107.9055, 30.3460],
+                [-107.8995, 30.3460],
+                [-107.8995, 30.3510],
+                [-107.9055, 30.3510],
+                [-107.9055, 30.3460],
+            ],
             'dimensiones_m2' => 25000,
             'red_wifi_ssid' => 'Myco-Field-WiFi-5G',
             'red_wifi_pass' => 'myco2026wifi',
@@ -81,6 +88,13 @@ class DatabaseSeeder extends Seeder
             'entorno' => 'marte',
             'latitud_central' => 18.380000,
             'longitud_central' => 77.580000,
+            'poligono_coordenadas' => [
+                [77.5650, 18.3650],
+                [77.5950, 18.3650],
+                [77.5950, 18.3950],
+                [77.5650, 18.3950],
+                [77.5650, 18.3650],
+            ],
             'dimensiones_m2' => 50000,
             'red_wifi_ssid' => 'Starlink-Mars-Mesh-Net',
             'red_wifi_pass' => 'jezeroAres2026',
@@ -91,8 +105,8 @@ class DatabaseSeeder extends Seeder
         $baseAlpha = EstacionBase::create([
             'nombre' => 'Estación Base Alpha-Dock 1',
             'terreno_id' => $terrenoTierra->id,
-            'latitud' => 29.072900,
-            'longitud' => -110.955900,
+            'latitud' => 30.347200,
+            'longitud' => -107.901500,
             'estado' => 'operativa',
             'stock_capsulas_minimo' => 150,
             'stock_capsulas_medio' => 200,
@@ -102,8 +116,8 @@ class DatabaseSeeder extends Seeder
         $baseMarte = EstacionBase::create([
             'nombre' => 'Módulo Base Jezero Dock-01',
             'terreno_id' => $terrenoMarte->id,
-            'latitud' => 18.380100,
-            'longitud' => 77.580100,
+            'latitud' => 18.379500,
+            'longitud' => 77.579000,
             'estado' => 'operativa',
             'stock_capsulas_minimo' => 300,
             'stock_capsulas_medio' => 250,
@@ -154,7 +168,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // 5. Robots Myco
-        // Robot 1: En modo lectura
+        // Robot 1: En modo lectura (Valle Alpha - Tierra)
         $robot1 = Robot::create([
             'nombre' => 'Myco-01 (Lectura)',
             'modelo' => 'Myco-Explorer-v1',
@@ -162,11 +176,11 @@ class DatabaseSeeder extends Seeder
             'terreno_id' => $terrenoTierra->id,
             'estacion_base_id' => $baseAlpha->id,
             'estado' => 'activo',
-            'modo' => 'lectura', // "Un robot puede estar en dos estados, ya sea en modo lectura o inyeccion"
-            'latitud' => 29.073200,
-            'longitud' => -110.955500,
-            'latitud_marte' => 29.073200,
-            'longitud_marte' => -110.955500,
+            'modo' => 'lectura',
+            'latitud' => 30.348900,
+            'longitud' => -107.904200,
+            'latitud_marte' => 30.348900,
+            'longitud_marte' => -107.904200,
             'bateria' => 88,
             'en_estacion_base' => false,
             'wifi_ssid' => 'Myco-Field-WiFi-5G',
@@ -185,7 +199,7 @@ class DatabaseSeeder extends Seeder
             'sensores_ir' => ['humedad' => 74, 'toxicidad' => 5],
         ]);
 
-        // Robot 2: En modo inyección
+        // Robot 2: En modo inyección (Valle Alpha - Tierra)
         $robot2 = Robot::create([
             'nombre' => 'Myco-02 (Inyección)',
             'modelo' => 'Myco-Injector-v1',
@@ -193,11 +207,11 @@ class DatabaseSeeder extends Seeder
             'terreno_id' => $terrenoTierra->id,
             'estacion_base_id' => $baseAlpha->id,
             'estado' => 'activo',
-            'modo' => 'inyeccion', // Modo inyección
-            'latitud' => 29.074100,
-            'longitud' => -110.954700,
-            'latitud_marte' => 29.074100,
-            'longitud_marte' => -110.954700,
+            'modo' => 'inyeccion',
+            'latitud' => 30.347800,
+            'longitud' => -107.900800,
+            'latitud_marte' => 30.347800,
+            'longitud_marte' => -107.900800,
             'bateria' => 78,
             'en_estacion_base' => false,
             'wifi_ssid' => 'Myco-Field-WiFi-5G',
@@ -216,7 +230,7 @@ class DatabaseSeeder extends Seeder
             'sensores_ir' => ['humedad' => 81, 'toxicidad' => 2],
         ]);
 
-        // Robot 3: Simulación en Marte
+        // Robot 3: Misión en Marte (Cráter Jezero)
         $robotMarte = Robot::create([
             'nombre' => 'Myco-Mars-Ares',
             'modelo' => 'Myco-Rover-Extreme',
@@ -247,20 +261,50 @@ class DatabaseSeeder extends Seeder
             'sensores_ir' => ['humedad' => 22, 'toxicidad' => 15],
         ]);
 
-        // 6. Mediciones de Suelo tomadas por Myco-01 en modo lectura
-        // Demostrando variación de humedad para el algoritmo de optimización
-        $medicionesMuestra = [
-            ['lat' => 29.073100, 'lon' => -110.955400, 'ph' => 6.8, 'temp' => 21.5, 'hum' => 78.5], // Óptimo para Grado Alto
-            ['lat' => 29.073300, 'lon' => -110.955200, 'ph' => 6.9, 'temp' => 22.0, 'hum' => 75.0], // Óptimo para Grado Alto
-            ['lat' => 29.073500, 'lon' => -110.955000, 'ph' => 6.7, 'temp' => 21.8, 'hum' => 52.0], // Grado Medio
-            ['lat' => 29.073700, 'lon' => -110.954800, 'ph' => 6.5, 'temp' => 23.1, 'hum' => 48.0], // Grado Medio
-            ['lat' => 29.073900, 'lon' => -110.954600, 'ph' => 7.2, 'temp' => 24.0, 'hum' => 26.5], // Grado Mínimo
-            ['lat' => 29.074100, 'lon' => -110.954400, 'ph' => 7.5, 'temp' => 26.2, 'hum' => 14.0], // Demasiado seco (<20%) -> Ahorro
-            ['lat' => 29.074300, 'lon' => -110.954200, 'ph' => 6.8, 'temp' => 22.4, 'hum' => 82.0], // Óptimo para Grado Alto
-            ['lat' => 29.074500, 'lon' => -110.954000, 'ph' => 6.6, 'temp' => 21.9, 'hum' => 69.5], // Óptimo para Grado Alto
+        // Robot 4: Misión en Marte - Mapeador (Cráter Jezero)
+        $robotMarte2 = Robot::create([
+            'nombre' => 'Myco-Mars-Phobos',
+            'modelo' => 'Myco-Scout-Ares',
+            'numero_serie' => 'MYCO-MARS-002',
+            'terreno_id' => $terrenoMarte->id,
+            'estacion_base_id' => $baseMarte->id,
+            'estado' => 'activo',
+            'modo' => 'lectura',
+            'latitud' => 18.378000,
+            'longitud' => 77.576000,
+            'latitud_marte' => 18.378000,
+            'longitud_marte' => 77.576000,
+            'bateria' => 84,
+            'en_estacion_base' => false,
+            'wifi_ssid' => 'Starlink-Mars-Mesh-Net',
+            'wifi_conectado' => true,
+            'wifi_ip' => '10.42.0.11',
+            'wifi_rssi' => -52,
+            'capacidad_capsulas' => 20,
+            'capsulas_minimo' => 10,
+            'capsulas_medio' => 5,
+            'capsulas_alto' => 5,
+            'configuracion' => [
+                'velocidad_m_s' => 0.5,
+                'intervalo_lectura_seg' => 10,
+                'espectrometria_marte' => true,
+            ],
+            'sensores_ir' => ['humedad' => 18, 'toxicidad' => 20],
+        ]);
+
+        // 6. Mediciones de Suelo tomadas por Myco-01 en Valle Alpha (Tierra)
+        $medicionesMuestraTierra = [
+            ['lat' => 30.348200, 'lon' => -107.903800, 'ph' => 6.8, 'temp' => 21.5, 'hum' => 78.5],
+            ['lat' => 30.348600, 'lon' => -107.903100, 'ph' => 6.9, 'temp' => 22.0, 'hum' => 75.0],
+            ['lat' => 30.347900, 'lon' => -107.902200, 'ph' => 6.7, 'temp' => 21.8, 'hum' => 52.0],
+            ['lat' => 30.349300, 'lon' => -107.901500, 'ph' => 6.5, 'temp' => 23.1, 'hum' => 48.0],
+            ['lat' => 30.347100, 'lon' => -107.904500, 'ph' => 7.2, 'temp' => 24.0, 'hum' => 26.5],
+            ['lat' => 30.350100, 'lon' => -107.903000, 'ph' => 7.5, 'temp' => 26.2, 'hum' => 14.0],
+            ['lat' => 30.349000, 'lon' => -107.900500, 'ph' => 6.8, 'temp' => 22.4, 'hum' => 82.0],
+            ['lat' => 30.347500, 'lon' => -107.904000, 'ph' => 6.6, 'temp' => 21.9, 'hum' => 69.5],
         ];
 
-        foreach ($medicionesMuestra as $m) {
+        foreach ($medicionesMuestraTierra as $m) {
             $eval = $optService->evaluarCondicionesSuelo($m['hum'], $m['ph'], $m['temp']);
 
             MedicionSuelo::create([
@@ -278,13 +322,40 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // 7. Inyecciones de prueba realizadas por Myco-02 en modo inyección
+        // Mediciones de Regolito en Cráter Jezero (Marte)
+        $medicionesMuestraMarte = [
+            ['lat' => 18.381000, 'lon' => 77.581000, 'ph' => 7.8, 'temp' => -32.0, 'hum' => 28.0],
+            ['lat' => 18.379000, 'lon' => 77.578000, 'ph' => 8.1, 'temp' => -35.0, 'hum' => 22.0],
+            ['lat' => 18.383500, 'lon' => 77.584000, 'ph' => 7.4, 'temp' => -30.5, 'hum' => 42.0],
+            ['lat' => 18.377000, 'lon' => 77.574000, 'ph' => 8.3, 'temp' => -40.0, 'hum' => 15.0],
+            ['lat' => 18.384000, 'lon' => 77.588000, 'ph' => 7.6, 'temp' => -31.0, 'hum' => 35.0],
+        ];
+
+        foreach ($medicionesMuestraMarte as $m) {
+            $eval = $optService->evaluarCondicionesSuelo($m['hum'], $m['ph'], $m['temp']);
+
+            MedicionSuelo::create([
+                'robot_id' => $robotMarte2->id,
+                'terreno_id' => $terrenoMarte->id,
+                'latitud' => $m['lat'],
+                'longitud' => $m['lon'],
+                'ph' => $m['ph'],
+                'temperatura' => $m['temp'],
+                'humedad' => $m['hum'],
+                'conductividad' => 2.80,
+                'es_optimo_inyeccion' => $eval['es_optimo'],
+                'grado_sugerido' => $eval['grado_recomendado'],
+                'fecha_medicion' => now()->subMinutes(rand(10, 180)),
+            ]);
+        }
+
+        // 7. Inyecciones en Valle Alpha (Tierra)
         Inyeccion::create([
             'robot_id' => $robot2->id,
             'capsula_id' => $capsulaHigh->id,
             'terreno_id' => $terrenoTierra->id,
-            'latitud' => 29.073150,
-            'longitud' => -110.955350,
+            'latitud' => 30.348400,
+            'longitud' => -107.903600,
             'grado_capsula' => 'alto',
             'humedad_suelo_detectada' => 78.5,
             'ph_detectado' => 6.8,
@@ -299,15 +370,15 @@ class DatabaseSeeder extends Seeder
             'robot_id' => $robot2->id,
             'capsula_id' => $capsulaMed->id,
             'terreno_id' => $terrenoTierra->id,
-            'latitud' => 29.073600,
-            'longitud' => -110.954900,
+            'latitud' => 30.348000,
+            'longitud' => -107.902000,
             'grado_capsula' => 'medio',
-            'humedad_suelo_detectada' => 50.0,
+            'humedad_suelo_detectada' => 52.0,
             'ph_detectado' => 6.7,
             'temperatura_detectada' => 22.0,
             'expansion_micelio_estimada_cm' => 25.0,
             'ahorro_recurso_porcentaje' => 50.0,
-            'justificacion_algoritmo' => 'Humedad moderada (50.0%). Cápsula Grado Medio inyectada para crecimiento sostenido y ahorro de cápsulas de alta concentración.',
+            'justificacion_algoritmo' => 'Humedad moderada (52.0%). Cápsula Grado Medio inyectada para crecimiento sostenido y ahorro de cápsulas de alta concentración.',
             'fecha_inyeccion' => now()->subMinutes(25),
         ]);
 
@@ -315,8 +386,8 @@ class DatabaseSeeder extends Seeder
             'robot_id' => $robot2->id,
             'capsula_id' => $capsulaHigh->id,
             'terreno_id' => $terrenoTierra->id,
-            'latitud' => 29.074350,
-            'longitud' => -110.954150,
+            'latitud' => 30.349100,
+            'longitud' => -107.900800,
             'grado_capsula' => 'alto',
             'humedad_suelo_detectada' => 82.0,
             'ph_detectado' => 6.8,
@@ -325,6 +396,39 @@ class DatabaseSeeder extends Seeder
             'ahorro_recurso_porcentaje' => 35.0,
             'justificacion_algoritmo' => 'Excelente retención de humedad (82.0%). Inoculación prioritaria de Grado Alto logrando expansión micelar rápida.',
             'fecha_inyeccion' => now()->subMinutes(10),
+        ]);
+
+        // Inyecciones en Cráter Jezero (Marte)
+        Inyeccion::create([
+            'robot_id' => $robotMarte->id,
+            'capsula_id' => $capsulaMin->id,
+            'terreno_id' => $terrenoMarte->id,
+            'latitud' => 18.381500,
+            'longitud' => 77.581800,
+            'grado_capsula' => 'minimo',
+            'humedad_suelo_detectada' => 28.0,
+            'ph_detectado' => 7.8,
+            'temperatura_detectada' => -32.0,
+            'expansion_micelio_estimada_cm' => 18.0,
+            'ahorro_recurso_porcentaje' => 60.0,
+            'justificacion_algoritmo' => 'Suelo marciano árido (28.0% humedad equivalente). Inyección de BioCapsule Xero-Min con esporas xerotolerantes para proteger inventario en Marte.',
+            'fecha_inyeccion' => now()->subMinutes(60),
+        ]);
+
+        Inyeccion::create([
+            'robot_id' => $robotMarte->id,
+            'capsula_id' => $capsulaMed->id,
+            'terreno_id' => $terrenoMarte->id,
+            'latitud' => 18.383700,
+            'longitud' => 77.584200,
+            'grado_capsula' => 'medio',
+            'humedad_suelo_detectada' => 42.0,
+            'ph_detectado' => 7.4,
+            'temperatura_detectada' => -30.5,
+            'expansion_micelio_estimada_cm' => 28.5,
+            'ahorro_recurso_porcentaje' => 45.0,
+            'justificacion_algoritmo' => 'Bolsillo de humedad subsuperficial detectado en regolito Jezero (42.0%). Inoculación Grado Medio.',
+            'fecha_inyeccion' => now()->subMinutes(30),
         ]);
 
         // 8. Simulaciones Temporales (Ideal, Extrema y Planeta Marte)

@@ -6,6 +6,7 @@ import { EstadisticasPanel } from './components/EstadisticasPanel';
 import teamLogo from './assets/logo.ico';
 import { PlanesSaaS } from './components/PlanesSaaS';
 import { Cotizador } from './components/Cotizador';
+import { apiService } from './services/api';
 import * as turf from '@turf/turf';
 
 function Dashboard() {
@@ -151,7 +152,6 @@ function Dashboard() {
 
     try {
       await fetchClima();
-      const { apiService } = await import('./services/api');
       const data = await apiService.remediarIA(activeMap);
       if (data.rutas?.length > 0) {
         setGeneratedRoute(data.rutas[0]);
@@ -260,14 +260,15 @@ function Dashboard() {
   const lbl = { fontSize: '0.58rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: '3px' };
 
   return (
-    <div style={{ padding:'8px', height:'100vh', boxSizing:'border-box', background:'#000', overflow:'hidden' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 360px', gap: '8px', height: '100%' }}>
+    <div style={{ padding:'10px', height:'calc(100vh - 64px)', minHeight:'calc(100vh - 64px)', boxSizing:'border-box', background:'#131313', overflow:'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 360px', gap: '10px', height: '100%' }}>
         <aside className="panel" style={{ padding:'16px', display:'flex', flexDirection:'column', gap:'14px', overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-            <div style={{ width:40, height:40, borderRadius:'50%', border:'2px solid #ff4500', flexShrink:0, overflow:'hidden' }}>
-              <img src={teamLogo} alt="M.Y.C.O" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div style={{ display:'flex', flexDirection:'column' }}>
+              <span style={{ fontSize:'0.6rem', color:'#ff4500', fontWeight:'700', letterSpacing:'1.5px', textTransform:'uppercase' }}>Consola Central</span>
+              <span style={{ fontSize:'0.88rem', color:'#fff', fontWeight:'800', letterSpacing:'0.5px' }}>TELEMETRÍA EN VIVO</span>
             </div>
-            <h1 style={{ margin:0, fontSize:'1.35rem', color:'#ff4500', fontWeight:'900', letterSpacing:'1px' }}>M.Y.C.O</h1>
+            <span style={{ fontSize:'0.58rem', padding:'2px 6px', borderRadius:'4px', background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)', color:'#22c55e', fontWeight:'bold' }}>ONLINE</span>
           </div>
 
           <div style={{ borderTop:'1px solid var(--line)' }} />
