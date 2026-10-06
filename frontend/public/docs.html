@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tratado Científico: Decodificación de Malla DEM e Interpolación Espacial | Myco AI</title>
+
+  <!-- Google Fonts: Inter, Space Grotesk & Fira Code -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+            },
+            accent: {
+              cyan: '#00f2fe',
+              blue: '#3b82f6',
+              amber: '#f59e0b',
+              mars: '#ff4500',
+              purple: '#a855f7'
+            },
+            dark: {
+              950: '#06080c',
+              900: '#0b0f17',
+              850: '#101622',
+              800: '#151d2d',
+              700: '#1e293b',
+              600: '#334155',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Space Grotesk', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Configuración de MathJax 3 con Soporte Completo LaTeX / AMS Math -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']],
+        processEscapes: true,
+        tags: 'ams',
+        macros: {
+          RR: "{\\mathbb{R}}",
+          NN: "{\\mathbb{N}}",
+          ZZ: "{\\mathbb{Z}}",
+          grad: "{\\nabla}",
+          norm: ["{\\left\\| #1 \\right\\|}", 1]
+        }
+      },
+      svg: {
+        fontCache: 'global'
+      },
+      options: {
+        renderActions: {
+          addMenu: []
+        }
+      }
+    };
+  </script>
+  <script type="text/javascript" id="MathJax-script" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+
+  <style>
+    /* Estilos de alta legibilidad para ecuaciones y contenido técnico */
+    mjx-container[jax="CHTML"][display="true"] {
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 0.85rem 0;
+      color: #f1f5f9;
+    }
+    .math-card {
+      background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, rgba(15, 23, 42, 0.85) 90%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #0b0f17;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+
+<body class="bg-dark-950 text-slate-200 font-sans antialiased selection:bg-brand-500 selection:text-black custom-scroll">
+
+  <!-- ─── BARRA DE NAVEGACIÓN SUPERIOR ─── -->
+  <header class="sticky top-0 z-50 backdrop-blur-xl bg-dark-950/85 border-b border-white/10 shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-500 to-accent-cyan p-[1px] shadow-lg shadow-brand-500/20">
+          <div class="w-full h-full bg-dark-900 rounded-[11px] flex items-center justify-center">
+            <i class="fa-solid fa-mountain-sun text-brand-400 text-sm"></i>
+          </div>
+        </div>
+        <div>
+          <span class="font-display font-bold text-white text-base tracking-wide flex items-center gap-2">
+            MYCO TECHNICAL ARCHIVE
+            <span class="text-[0.6rem] px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-400 border border-brand-500/30">MONOGRAPH</span>
+          </span>
+          <span class="text-[0.65rem] block text-slate-400 font-mono">SERIES: GEO-COMPUTATIONAL ALGORITHMS | DOC-ID: DEM-INT-2026</span>
+        </div>
+      </div>
+
+      <nav class="hidden xl:flex items-center gap-5 text-xs font-mono text-slate-400">
+        <a href="#abstract" class="hover:text-brand-400 transition-colors">Resumen</a>
+        <a href="#cap1" class="hover:text-brand-400 transition-colors">1. Marco DEM</a>
+        <a href="#cap2" class="hover:text-brand-400 transition-colors">2. Decodificación RGB</a>
+        <a href="#cap3" class="hover:text-brand-400 transition-colors">3. Web Mercator</a>
+        <a href="#cap4" class="hover:text-brand-400 transition-colors">4. Malla & BBox</a>
+        <a href="#cap5" class="hover:text-brand-400 transition-colors">5. Interpolación</a>
+        <a href="#cap6" class="hover:text-brand-400 transition-colors">6. Gradientes</a>
+        <a href="#sandbox" class="hover:text-accent-cyan transition-colors text-accent-cyan flex items-center gap-1 font-bold">
+          <i class="fa-solid fa-flask"></i> Laboratorio
+        </a>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <a href="/" class="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-mono border border-white/10 flex items-center gap-2 transition-all">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Volver al Sistema</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ─── HEADER DE TIPO ARTÍCULO CIENTÍFICO (HERO) ─── -->
+  <section class="relative overflow-hidden py-16 lg:py-24 border-b border-white/5 bg-gradient-to-b from-dark-900 via-dark-950 to-dark-950">
+    <div class="absolute inset-0 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:28px_28px] opacity-10"></div>
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 relative z-10 text-center">
+      
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 font-mono text-xs mb-6 shadow-inner">
+        <span class="w-2 h-2 rounded-full bg-brand-400 animate-ping"></span>
+        <span>Publicación Técnica Oficial &bull; Plataforma Bio-Robótica Myco</span>
+      </div>
+
+      <h1 class="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white font-display tracking-tight leading-snug mb-6">
+        Fundamentación Físico-Matemática de la Decodificación Altimétrica de Mallas DEM y Mecanismos de Interpolación Espacial Diferenciable
+      </h1>
+
+      <p class="text-sm sm:text-base text-slate-400 max-w-3xl mx-auto leading-relaxed font-sans mb-8">
+        Modelado formal del espacio radiométrico de 24 bits <em>Terrain-RGB</em>, transformaciones geodésicas conformes 
+        en proyección Web Mercator ($EPSG:3857$), reconstrucción topográfica bidimensional mediante interpolación bilineal 
+        y splines bicúbicos de Clough-Tocher ($C^1$), y derivación analítica del tensor de gradiente para navegación cinemática 
+        de rovers autónomos.
+      </p>
+
+      <!-- Metadatos de Autores e Institución -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-3xl mx-auto pt-6 border-t border-white/10 text-left font-mono text-xs">
+        <div class="p-2.5 rounded-lg bg-dark-900/60 border border-white/5">
+          <span class="text-slate-500 block text-[0.65rem] uppercase">Área Científica</span>
+          <span class="text-white font-medium">Geocomputación & IA</span>
+        </div>
+        <div class="p-2.5 rounded-lg bg-dark-900/60 border border-white/5">
+          <span class="text-slate-500 block text-[0.65rem] uppercase">Motor Matemático</span>
+          <span class="text-brand-400 font-medium">MathJax 3 / TeX</span>
+        </div>
+        <div class="p-2.5 rounded-lg bg-dark-900/60 border border-white/5">
+          <span class="text-slate-500 block text-[0.65rem] uppercase">Continuidad</span>
+          <span class="text-accent-cyan font-medium">Clough-Tocher $C^1$</span>
+        </div>
+        <div class="p-2.5 rounded-lg bg-dark-900/60 border border-white/5">
+          <span class="text-slate-500 block text-[0.65rem] uppercase">Geodesia</span>
+          <span class="text-amber-400 font-medium">WGS84 / EPSG:3857</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─── CUERPO PRINCIPAL DEL ARTÍCULO ─── -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 lg:grid-cols-4 gap-10">
+
+    <!-- ÍNDICE FLOTANTE LATERAL -->
+    <aside class="hidden lg:block lg:col-span-1">
+      <div class="sticky top-24 p-5 rounded-2xl bg-dark-900/90 border border-white/10 text-xs font-mono space-y-4 shadow-xl">
+        <div class="flex items-center justify-between border-b border-white/10 pb-2">
+          <span class="text-slate-400 uppercase font-bold tracking-wider text-[0.7rem]">
+            Índice Temático
+          </span>
+          <i class="fa-solid fa-list-ol text-brand-400"></i>
+        </div>
+
+        <ul class="space-y-1.5 text-slate-300">
+          <li>
+            <a href="#abstract" class="hover:text-brand-400 block py-1 transition-colors">
+              &bull; Resumen / Abstract
+            </a>
+          </li>
+          <li>
+            <a href="#cap1" class="hover:text-brand-400 block py-1 transition-colors">
+              1. Fundamentos del DEM
+            </a>
+          </li>
+          <li>
+            <a href="#cap2" class="hover:text-brand-400 block py-1 transition-colors">
+              2. Decodificación RGB
+            </a>
+          </li>
+          <li>
+            <a href="#cap3" class="hover:text-brand-400 block py-1 transition-colors">
+              3. Geodesia Web Mercator
+            </a>
+          </li>
+          <li>
+            <a href="#cap4" class="hover:text-brand-400 block py-1 transition-colors">
+              4. Malla & Bounding Box
+            </a>
+          </li>
+          <li>
+            <a href="#cap5" class="hover:text-brand-400 block py-1 transition-colors">
+              5. Métodos de Interpolación
+            </a>
+          </li>
+          <li>
+            <a href="#cap6" class="hover:text-brand-400 block py-1 transition-colors">
+              6. Pendientes & Energía
+            </a>
+          </li>
+          <li>
+            <a href="#cap7" class="hover:text-brand-400 block py-1 transition-colors">
+              7. Algoritmos en Código
+            </a>
+          </li>
+          <li>
+            <a href="#sandbox" class="text-accent-cyan font-bold block py-1 transition-colors hover:underline">
+              8. Laboratorio Interactivo
+            </a>
+          </li>
+          <li>
+            <a href="#referencias" class="hover:text-brand-400 block py-1 transition-colors">
+              9. Referencias
+            </a>
+          </li>
+        </ul>
+
+        <div class="pt-3 border-t border-white/10 text-[0.68rem] text-slate-400 leading-tight">
+          <span class="text-brand-400 font-bold block mb-1">Nota de Reproducibilidad:</span>
+          Las ecuaciones matemáticas expuestas coinciden exactamente con la implementación en 
+          <code>myco_ia/python/ruteo_rovers.py</code> y <code>CrearTerrenoView.jsx</code>.
+        </div>
+      </div>
+    </aside>
+
+    <!-- ARTÍCULO CIENTÍFICO EXTENDIDO -->
+    <article class="lg:col-span-3 space-y-16 leading-relaxed">
+
+      <!-- RESUMEN / ABSTRACT -->
+      <section id="abstract" class="p-6 sm:p-8 rounded-2xl bg-dark-900 border border-white/10 space-y-4 text-sm">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <i class="fa-solid fa-bookmark"></i>
+          <span>Resumen Ejecutivo</span>
+        </div>
+        <p class="text-slate-300 italic text-justify leading-relaxed">
+          En este documento se expone la formulación matemática y computacional completa para la obtención y refinamiento 
+          de Modelos Digitales de Elevación (DEM) utilizados en el ecosistema Myco. Se describe en detalle cómo una imagen 
+          ráster codificada cromáticamente en el espacio $RGB \in [0, 255]^3$ es proyectada desde el sistema de coordenadas 
+          elipsoidales $WGS84$ al sistema conforme de Web Mercator ($EPSG:3857$), recuperando la cota altimétrica física $z$ 
+          con precisión de diez centímetros. Posteriormente, se abordan los métodos de interpolación espacial bidimensional: 
+          la interpolación bilineal de bajo coste computacional y la interpolación cúbica de Clough-Tocher ($C^1$-continua) 
+          implementada en SciPy, demostrando por qué esta última es fundamental para evitar discontinuidades artificiales 
+          en el cálculo del gradiente topográfico $\nabla z$, del ángulo de pendiente $\theta$ y del coste energético de navegación 
+          de los rovers agrícolas.
+        </p>
+        <div class="flex flex-wrap gap-2 pt-2 text-xs font-mono text-slate-400">
+          <span class="text-slate-300 font-semibold">Palabras clave:</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10">Modelo Digital de Elevación</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10">Terrain-RGB</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10">Web Mercator</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10">Clough-Tocher Splines</span>
+          <span class="px-2 py-0.5 rounded bg-white/5 border border-white/10">Gradiente Topográfico</span>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 1: INTRODUCCIÓN Y MARCO TEÓRICO -->
+      <section id="cap1" class="space-y-4">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo I</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          1. Definición Analítica del Modelo Digital de Elevación (DEM)
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Formalmente, definimos un Modelo Digital de Elevación (DEM) como un campo escalar bi-dimensional continuo:
+        </p>
+
+        <div class="text-center py-2">
+          $$z = h(x, y): \Omega \subset \mathbb{R}^2 \longrightarrow \mathbb{R}$$
+        </div>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          donde $\Omega$ representa el dominio espacial bidimensional de la parcela agrícola acotada por el polígono 
+          delimitado por el usuario, $(x, y)$ representan las coordenadas proyectadas planimétricas en metros, y $z$ 
+          corresponde a la cota o elevación ortométrica respecto al nivel medio del geoide terrestre en metros.
+        </p>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          En el contexto de la simulación biológica de micelio y la planificación de misiones de exploración con vehículos terrestres no tripulados (rovers), el relieve del terreno determina dos factores críticos:
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 font-mono text-xs">
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <div class="text-brand-400 font-bold mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-water"></i> 1. Vector de Escorrentía Hídrica
+            </div>
+            <p class="text-slate-400">
+              El flujo superficial de agua y solutos minerales sigue la dirección de máxima pendiente negativa 
+              $\mathbf{d}_{\text{flujo}} = -\nabla h(x, y)$, condicionando la humedad óptima del suelo para la inoculación micelial.
+            </p>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <div class="text-brand-400 font-bold mb-1 flex items-center gap-2">
+              <i class="fa-solid fa-robot"></i> 2. Dinámica y Seguridad del Rover
+            </div>
+            <p class="text-slate-400">
+              La estabilidad cinemática exige que el chasis no supere un ángulo de inclinación crítico 
+              $\theta \le \theta_{\text{crítico}} = 25^\circ$. Pendientes superiores inducen riesgo inminente de vuelco catastrófico.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 2: DECODIFICACIÓN HIPSOMÉTRICA DE TERRAIN-RGB -->
+      <section id="cap2" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo II</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          2. Decodificación Hipsométrica de Teselas Terrain-RGB
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Los proveedores globales de cartografía satelital (como Mapbox) codifican los datos altimétricos globales 
+          en formato ráster PNG de 24 bits por píxel bajo la especificación <strong>Terrain-RGB</strong>. 
+          A diferencia de una imagen fotográfica convencional donde el color representa radiancia óptica visible, 
+          en Terrain-RGB cada píxel contiene una tupla de tres canales enteros de 8 bits:
+        </p>
+
+        <div class="text-center py-1 font-mono text-xs text-accent-cyan">
+          $$(R, G, B) \in \mathcal{C} = \{0, 1, \dots, 255\}^3$$
+        </div>
+
+        <!-- TARJETA MATEMÁTICA PRINCIPAL -->
+        <div class="p-6 sm:p-8 rounded-2xl math-card space-y-4">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <span class="text-xs font-mono text-brand-400 font-bold flex items-center gap-2">
+              <i class="fa-solid fa-calculator"></i> Teorema 1: Ecuación Universal de Decodificación Hipsométrica
+            </span>
+            <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 border border-brand-500/20">
+              Norma Mapbox v4
+            </span>
+          </div>
+
+          <p class="text-xs text-slate-300">
+            La función biyectiva que mapea la tupla radiométrica $(R, G, B)$ a la elevación física en metros $h \in \mathbb{R}$ está dada por:
+          </p>
+
+          <div class="text-center py-3">
+            $$h(R, G, B) = -10000 + \left( R \cdot 256^2 + G \cdot 256 + B \right) \times 0.1$$
+          </div>
+
+          <p class="text-xs text-slate-400">
+            En arquitectura de hardware y bajo aritmética de punto fijo con operadores binarios de desplazamiento a la izquierda (<em>bit-shifting</em>):
+          </p>
+
+          <div class="text-center py-2 font-mono text-xs sm:text-sm text-accent-cyan">
+            $$h(R, G, B) = -10000 + \Big[ \big( (R \ll 16) + (G \ll 8) + B \big) \times 0.1 \Big]$$
+          </div>
+        </div>
+
+        <!-- ANÁLISIS DE PRECISIÓN Y RANGO DINÁMICO -->
+        <div class="space-y-4 text-xs">
+          <h3 class="text-base font-bold text-white font-display">Análisis de Propiedades Metrológicas:</h3>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            
+            <div class="p-4 rounded-xl bg-dark-900 border border-white/10 space-y-2">
+              <span class="text-brand-400 font-bold block">1. Cuantización & Resolución Vertical</span>
+              <p class="text-slate-400">
+                El cuanto mínimo de elevación medible ($\Delta h_{\min}$) ocurre cuando varía el bit menos significativo ($LSB$) del canal azul:
+              </p>
+              <div class="text-white font-mono bg-black/40 p-2 rounded text-center">
+                $$\Delta h_{\min} = 1 \times 0.1\,\text{m} = \mathbf{0.10\,\text{m}} = 10\,\text{cm}$$
+              </div>
+              <p class="text-slate-400">
+                El error máximo de truncamiento absoluto es $\epsilon \le \pm 0.05\,\text{m}$.
+              </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-dark-900 border border-white/10 space-y-2">
+              <span class="text-accent-cyan font-bold block">2. Cota Mínima Altimétrica</span>
+              <p class="text-slate-400">
+                Para el valor de negro absoluto $(R, G, B) = (0, 0, 0)$:
+              </p>
+              <div class="text-white font-mono bg-black/40 p-2 rounded text-center">
+                $$h(0, 0, 0) = \mathbf{-10000.0\,\text{m}}$$
+              </div>
+              <p class="text-slate-400">
+                Permite cubrir la fosa más profunda de la Tierra (Fosa de las Marianas: $\approx -10984\,\text{m}$ con mínimo offset).
+              </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-dark-900 border border-white/10 space-y-2">
+              <span class="text-amber-400 font-bold block">3. Cota Máxima de Saturación</span>
+              <p class="text-slate-400">
+                Para el valor de saturación máxima $(R, G, B) = (255, 255, 255) = 2^{24}-1 = 16,777,215$:
+              </p>
+              <div class="text-white font-mono bg-black/40 p-2 rounded text-center">
+                $$h_{\max} = -10000 + (16777215 \times 0.1) \approx \mathbf{1,667,721.5\,\text{m}}$$
+              </div>
+              <p class="text-slate-400">
+                Capacidad para mapear mesetas terrestres y formaciones volcánicas de Marte.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- DEMOSTRACIÓN DE CODIFICACIÓN INVERSA -->
+        <div class="p-5 rounded-xl bg-dark-800/80 border border-white/10 space-y-3 font-mono text-xs">
+          <div class="text-amber-400 font-bold flex items-center gap-2">
+            <i class="fa-solid fa-arrow-right-arrow-left"></i> Ecuación Inversa: De Altura Física $h$ a Color Ráster $(R, G, B)$
+          </div>
+          <p class="text-slate-300">
+            Dada una elevación física conocida $h \ge -10000\,\text{m}$, el entero radiométrico acumulado $V \in \mathbb{N}_0$ se obtiene mediante:
+          </p>
+          <div class="text-center py-1 text-white">
+            $$V = \left\lfloor \frac{h + 10000}{0.1} \right\rceil = \lfloor 10 \cdot (h + 10000) \rceil$$
+          </div>
+          <p class="text-slate-300">
+            A continuación, la descomposición en los tres canales independientes de 8 bits se efectúa mediante división entera y módulo:
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-accent-cyan">
+            <div class="bg-black/60 p-2 rounded border border-white/5">$$R = \lfloor V / 65536 \rfloor$$</div>
+            <div class="bg-black/60 p-2 rounded border border-white/5">$$G = \lfloor (V \pmod{65536}) / 256 \rfloor$$</div>
+            <div class="bg-black/60 p-2 rounded border border-white/5">$$B = V \pmod{256}$$</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 3: GEODESIA Y WEB MERCATOR -->
+      <section id="cap3" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo III</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          3. Proyección Geodésica Conforme Web Mercator ($EPSG:3857$) y Slippy Map Tiles
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Para asociar de forma unívoca una coordenada geográfica elipsoidal dada por su longitud $\lambda \in [-180^\circ, 180^\circ]$ 
+          y su latitud geodésica $\phi \in [-85.051129^\circ, 85.051129^\circ]$ con un píxel específico dentro de la pirámide de teselas ráster, 
+          se aplica la proyección cilíndrica conforme de <strong>Web Mercator</strong> al nivel de zoom $z \in \mathbb{N}_0$.
+        </p>
+
+        <!-- TARJETA MATEMÁTICA PROYECCIÓN -->
+        <div class="p-6 sm:p-8 rounded-2xl math-card space-y-4">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <span class="text-xs font-mono text-brand-400 font-bold flex items-center gap-2">
+              <i class="fa-solid fa-globe"></i> Ecuación 2: Transformación de Coordenadas Geográficas a Índices de Tesela
+            </span>
+            <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">
+              $WGS84 \longrightarrow EPSG:3857$
+            </span>
+          </div>
+
+          <div class="space-y-4 py-2 text-center text-xs sm:text-sm">
+            <div>
+              $$X_{\text{tile}}(\lambda, z) = \left\lfloor \frac{\lambda + 180}{360} \cdot 2^z \right\rfloor$$
+            </div>
+            <div>
+              $$Y_{\text{tile}}(\phi, z) = \left\lfloor \left( 1 - \frac{\ln\left(\tan\left(\frac{\pi}{4} + \frac{\phi \cdot \frac{\pi}{180}}{2}\right)\right)}{\pi} \right) \cdot \frac{2^z}{2} \right\rfloor$$
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-400">
+            Nótese que a nivel de zoom $z$, el planeta completo se discretiza en una matriz de $2^z \times 2^z$ teselas, cada una de dimensión $256 \times 256$ píxeles.
+          </p>
+        </div>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Una vez descargada la tesela tridimensional $(z, X_{\text{tile}}, Y_{\text{tile}})$, las coordenadas sub-pixel continuas $(p_x, p_y) \in [0, 255] \times [0, 255]$ donde reside el valor altimétrico se calculan extrayendo la parte fraccionaria:
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-xs text-center">
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <span class="text-slate-400 block mb-1">Coordenada Horizontal de Píxel $p_x$:</span>
+            <div class="text-accent-cyan font-bold text-sm">
+              $$p_x = \Big\lfloor \Big( \frac{\lambda + 180}{360} \cdot 2^z - X_{\text{tile}} \Big) \times 256 \Big\rfloor$$
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <span class="text-slate-400 block mb-1">Coordenada Vertical de Píxel $p_y$:</span>
+            <div class="text-accent-cyan font-bold text-sm">
+              $$p_y = \Big\lfloor \Big( Y_{\text{world}}(\phi, z) - Y_{\text{tile}} \Big) \times 256 \Big\rfloor$$
+            </div>
+          </div>
+        </div>
+
+        <!-- RESOLUCIÓN MÉTRICA LOCAL -->
+        <div class="p-4 rounded-xl bg-dark-900 border border-white/10 text-xs space-y-2">
+          <span class="text-brand-400 font-bold block flex items-center gap-2">
+            <i class="fa-solid fa-ruler-combined"></i> Resolución Métrica Horizontal por Píxel (Factor de Escala Local):
+          </span>
+          <p class="text-slate-300">
+            Debido a la distorsión conforme de Mercator, el tamaño de un píxel en metros sobre el terreno varía con la latitud $\phi$:
+          </p>
+          <div class="text-center py-1 text-white font-mono">
+            $$\text{Res}(z, \phi) = \frac{2 \pi R_{\oplus} \cos(\phi)}{256 \cdot 2^z} = \frac{156543.03 \cdot \cos(\phi)}{2^z} \quad \left[\frac{\text{metros}}{\text{píxel}}\right]$$
+          </div>
+          <p class="text-slate-400">
+            A un nivel de zoom óptimo $z = 15$ en latitudes medias ($\phi \approx 20^\circ$), la resolución horizontal nativa es de $\approx 4.5\,\text{m/px}$.
+          </p>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 4: DISCRETIZACIÓN Y BOUNDING BOX -->
+      <section id="cap4" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo IV</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          4. Discretización de la Malla Base $16 \times 16$ y Bounding Box
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Dada una parcela delimitada por el usuario mediante un polígono continuo con vértices en $WGS84$, se calcula su envolvente rectangular mínima o <strong>Bounding Box</strong> $\mathcal{B}$:
+        </p>
+
+        <div class="text-center py-1 font-mono text-xs text-white">
+          $$\mathcal{B} = [\lambda_{\min}, \phi_{\min}, \lambda_{\max}, \phi_{\max}]$$
+        </div>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Se inicializa una rejilla de muestreo discreta base de tamaño $N_{\text{rows}} \times N_{\text{cols}} = 16 \times 16$. 
+          Para cada nodo discreto $(r, c)$ donde $r \in \{0, 1, \dots, N_{\text{rows}}-1\}$ (filas) y $c \in \{0, 1, \dots, N_{\text{cols}}-1\}$ (columnas), 
+          las coordenadas geográficas correspondientes se determinan mediante una partición uniforme del intervalo:
+        </p>
+
+        <!-- TARJETA MATEMÁTICA MALLA -->
+        <div class="p-6 rounded-2xl math-card space-y-3">
+          <div class="flex items-center justify-between border-b border-white/10 pb-2">
+            <span class="text-xs font-mono text-brand-400 font-bold">Ecuación 3: Mapeo de Índices Matriciales a Coordenadas Geográficas</span>
+            <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">Rejilla Base</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2 text-center text-xs sm:text-sm">
+            <div>
+              $$\lambda(c) = \lambda_{\min} + \frac{c}{N_{\text{cols}} - 1} \cdot (\lambda_{\max} - \lambda_{\min})$$
+            </div>
+            <div>
+              $$\phi(r) = \phi_{\max} - \frac{r}{N_{\text{rows}} - 1} \cdot (\phi_{\max} - \phi_{\min})$$
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-400">
+            Observación: El índice de fila $r=0$ corresponde al extremo Norte geográfico ($\phi_{\max}$), 
+            mientras que $r = N_{\text{rows}}-1$ corresponde al extremo Sur ($\phi_{\min}$).
+          </p>
+        </div>
+
+        <!-- ESCALADO SEGÚN HECTÁREAS -->
+        <div class="p-5 rounded-xl bg-dark-900 border border-white/10 space-y-3 text-xs">
+          <span class="text-accent-cyan font-bold block flex items-center gap-2">
+            <i class="fa-solid fa-arrows-split-up-and-left"></i> Regla de Escalabilidad Espacial según Superficie (Hectáreas):
+          </span>
+          <p class="text-slate-300 text-justify">
+            Para parcelas de gran extensión, una resolución fija de $16 \times 16$ causaría que las celdas abarquen decenas de metros, 
+            perdiendo zanjas, surcos y rocas. Por ende, el sistema Myco escala la resolución de la malla en función de la superficie total $\mathcal{A}_{\text{ha}}$:
+          </p>
+          <div class="text-center py-1 font-mono text-brand-400 text-sm">
+            $$\kappa = \max\left(1, \; \left\lceil \sqrt{\frac{\mathcal{A}_{\text{ha}}}{2.0}} \right\rceil \right), \qquad N_{\text{alta\_res}} = 16 \times \kappa$$
+          </div>
+          <p class="text-slate-400">
+            Así, parcelas menores a 2 ha se modelan a $16 \times 16$, entre 2 y 8 ha a $32 \times 32$, y extensiones mayores a $64 \times 64$, manteniendo una resolución submétrica óptima.
+          </p>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 5: MECANISMOS DE INTERPOLACIÓN ESPACIAL -->
+      <section id="cap5" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo V</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          5. Mecanismos de Interpolación Espacial 2D
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Dada la matriz de elevación de baja densidad $\mathbf{Z}_{\text{base}} \in \mathbb{R}^{16 \times 16}$, 
+          se requiere estimar la elevación en cualquier punto continuo $(x, y) \in \Omega$ o generar una malla densa 
+          refinada $\mathbf{Z}_{\text{ref}} \in \mathbb{R}^{N' \times N'}$. Para ello se evalúan dos aproximaciones matemáticas fundamentales:
+        </p>
+
+        <!-- SUB-SECCIÓN 5.1: INTERPOLACIÓN BILINEAL -->
+        <div class="space-y-4">
+          <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-brand-400"></span>
+            5.1 Interpolación Bilineal (Continuidad $C^0$, Tiempo Real Lado Cliente)
+          </h3>
+
+          <p class="text-slate-300 text-sm leading-relaxed text-justify">
+            Sea un punto continuo con coordenadas matriciales normalizadas $(r', c')$. Sean sus cuatro celdas adyacentes discretas:
+            $r_0 = \lfloor r' \rfloor$, $r_1 = r_0 + 1$, $c_0 = \lfloor c' \rfloor$, $c_1 = c_0 + 1$.
+            Los desplazamientos relativos adimensionales son:
+          </p>
+
+          <div class="text-center py-1 font-mono text-xs text-white">
+            $$u = r' - r_0 \in [0, 1), \qquad v = c' - c_0 \in [0, 1)$$
+          </div>
+
+          <!-- TARJETA MATEMÁTICA BILINEAL -->
+          <div class="p-6 rounded-2xl math-card space-y-3">
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+              <span class="text-xs font-mono text-brand-400 font-bold">Ecuación 4: Forma Matricial de la Superficie Bilineal</span>
+              <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-white/10 text-slate-300">Tensor de Polinomios Lineales</span>
+            </div>
+
+            <div class="text-center py-2 text-xs sm:text-sm">
+              $$Z(u, v) = \begin{bmatrix} 1 - u & u \end{bmatrix} \begin{bmatrix} Z(r_0, c_0) & Z(r_0, c_1) \\ Z(r_1, c_0) & Z(r_1, c_1) \end{bmatrix} \begin{bmatrix} 1 - v \\ v \end{bmatrix}$$
+            </div>
+
+            <p class="text-xs text-slate-300">
+              Desarrollando los términos algebraicos:
+            </p>
+
+            <div class="text-center py-1 font-mono text-xs text-accent-cyan">
+              $$Z(u, v) = (1-u)(1-v)Z_{00} + (1-u)v Z_{01} + u(1-v)Z_{10} + uv Z_{11}$$
+            </div>
+          </div>
+
+          <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 space-y-1">
+            <strong>Limitación Matemática Crítica de la Interpolación Bilineal:</strong>
+            <p class="text-slate-300">
+              Aunque la función altimétrica $Z(u, v)$ es continua ($C^0$), sus derivadas parciales $\frac{\partial Z}{\partial u}$ y $\frac{\partial Z}{\partial v}$ 
+              <strong>no son continuas</strong> en los bordes entre celdas ($C^1 \notin \text{Bilineal}$). Esto produce "crestas" y aristas no diferenciables, generando saltos bruscos en el cálculo del ángulo de inclinación y par motor del rover.
+            </p>
+          </div>
+        </div>
+
+        <!-- SUB-SECCIÓN 5.2: CLOUGH-TOCHER BICÚBICA -->
+        <div class="space-y-4 pt-4">
+          <h3 class="text-lg font-bold text-white font-display flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-accent-cyan"></span>
+            5.2 Interpolación Cúbica de Clough-Tocher 2D ($C^1$-Continuo, Servidor SciPy)
+          </h3>
+
+          <p class="text-slate-300 text-sm leading-relaxed text-justify">
+            Para garantizar que el campo escalar de elevación admita un gradiente topográfico suave y diferenciable en todo punto, 
+            el microservicio en Python utiliza el método <code>scipy.interpolate.griddata(..., method='cubic')</code>. 
+            Este algoritmo implementa el esquema de elementos finitos de <strong>Clough-Tocher</strong>:
+          </p>
+
+          <ol class="list-decimal pl-5 space-y-2 text-xs text-slate-300">
+            <li>
+              <strong>Triangulación de Delaunay ($\mathcal{DT}$):</strong> Se construye un mallado triangular de Delaunay 
+              sobre los puntos dispersos de muestreo, maximizando el ángulo mínimo de cada triángulo para evitar triángulos degenerados.
+            </li>
+            <li>
+              <strong>Subdivisión de Clough-Tocher:</strong> Cada triángulo $T$ se subdivide en tres micro-triángulos conectando los tres vértices con el baricentro del triángulo.
+            </li>
+            <li>
+              <strong>Ajuste de Polinomios de Bernstein-Bézier de Grado 3:</strong> Sobre cada uno de los micro-triángulos se ajusta un polinomio cúbico biparamétrico expresado en coordenadas baricéntricas $(b_1, b_2, b_3)$:
+            </li>
+          </ol>
+
+          <!-- TARJETA MATEMÁTICA CLOUGH-TOCHER -->
+          <div class="p-6 rounded-2xl math-card space-y-3">
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+              <span class="text-xs font-mono text-brand-400 font-bold">Ecuación 5: Interpolador Cúbico Baricéntrico de Clough-Tocher</span>
+              <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/20">Clough & Tocher (1965)</span>
+            </div>
+
+            <div class="text-center py-2 text-xs sm:text-sm">
+              $$Z(b_1, b_2, b_3) = \sum_{i+j+k=3} \frac{3!}{i! \, j! \, k!} \, c_{ijk} \, b_1^i \, b_2^j \, b_3^k$$
+            </div>
+
+            <p class="text-xs text-slate-300">
+              Donde las coordenadas baricéntricas satisfacen estrictamente la restricción de pertenencia al símplex:
+            </p>
+
+            <div class="text-center py-1 font-mono text-xs text-white">
+              $$b_1 + b_2 + b_3 = 1, \qquad b_i \ge 0$$
+            </div>
+
+            <div class="p-3 bg-brand-500/10 border border-brand-500/30 rounded-lg text-xs text-brand-300">
+              <strong>Teorema de Continuidad $C^1$:</strong>
+              Los 12 coeficientes de control $c_{ijk}$ de cada subdivisión se resuelven imponiendo la igualdad no solo de los valores nodales, sino también de los gradientes direccionales normales en las aristas compartidas:
+              $$\lim_{\epsilon \to 0^+} \nabla Z(p + \epsilon \mathbf{n}) = \lim_{\epsilon \to 0^-} \nabla Z(p + \epsilon \mathbf{n}) \implies \mathbf{Z} \in C^1(\Omega)$$
+            </div>
+          </div>
+        </div>
+
+        <!-- TABLA COMPARATIVA DE MÉTODOS -->
+        <div class="space-y-3 text-xs">
+          <h3 class="text-base font-bold text-white font-display">Tabla Comparativa de Esquemas de Interpolación Topográfica:</h3>
+          
+          <div class="overflow-x-auto rounded-xl border border-white/10">
+            <table class="w-full text-left font-mono">
+              <thead class="bg-dark-900 text-slate-400 border-b border-white/10 text-[0.7rem] uppercase">
+                <tr>
+                  <th class="p-3">Método</th>
+                  <th class="p-3">Continuidad</th>
+                  <th class="p-3">Diferenciabilidad Gradiente</th>
+                  <th class="p-3">Complejidad Temporal</th>
+                  <th class="p-3">Ámbito en Myco</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/5 bg-dark-950/70 text-slate-300 text-xs">
+                <tr>
+                  <td class="p-3 font-bold text-slate-400">Vecino Más Cercano (Nearest)</td>
+                  <td class="p-3 text-red-400">$C^{-1}$ (Discontinua)</td>
+                  <td class="p-3 text-red-400">Nula (Derivadas delta infinitas)</td>
+                  <td class="p-3 text-brand-400">$\mathcal{O}(1)$</td>
+                  <td class="p-3 text-slate-400">No apto para cinemática</td>
+                </tr>
+                <tr>
+                  <td class="p-3 font-bold text-white">Bilineal 2D</td>
+                  <td class="p-3 text-amber-400">$C^0$ (Continua en posición)</td>
+                  <td class="p-3 text-amber-400">Discontinua en aristas ($C^0 \notin \nabla$)</td>
+                  <td class="p-3 text-brand-400">$\mathcal{O}(1)$ por celda</td>
+                  <td class="p-3 text-white">Visualización rápida cliente</td>
+                </tr>
+                <tr class="bg-brand-500/5">
+                  <td class="p-3 font-bold text-accent-cyan">Clough-Tocher Cúbico</td>
+                  <td class="p-3 text-brand-400">$C^1$ (Posición y derivadas)</td>
+                  <td class="p-3 text-brand-400">Continua en todo el dominio</td>
+                  <td class="p-3 text-amber-400">$\mathcal{O}(N \log N)$ (Delaunay)</td>
+                  <td class="p-3 text-brand-300 font-bold">Ruteo de Rovers & Clima (Flask)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 6: GRADIENTE, PENDIENTES Y FUNCIÓN DE COSTO -->
+      <section id="cap6" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo VI</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          6. Análisis Diferencial de Pendientes y Función de Costo Físico
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Sobre la superficie continua generada $Z(x, y)$, el tensor del gradiente topográfico local $\nabla Z(x, y)$ define el vector ortogonal a las curvas de nivel:
+        </p>
+
+        <div class="text-center py-2">
+          $$\nabla Z(x, y) = \left[ \frac{\partial Z}{\partial x}, \; \frac{\partial Z}{\partial y} \right]^T$$
+        </div>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          En la malla discreta regular con espaciados métricos horizontales $\Delta x$ y $\Delta y$, las derivadas parciales se aproximan mediante el operador de <strong>diferencias finitas centrales</strong> de orden $\mathcal{O}(h^2)$:
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 font-mono text-xs text-center">
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <span class="text-slate-400 block mb-1">Gradiente en Dirección Este-Oeste ($\partial x$):</span>
+            <div class="text-white">
+              $$\frac{\partial Z}{\partial x}(i, j) \approx \frac{Z(i, j+1) - Z(i, j-1)}{2 \Delta x}$$
+            </div>
+          </div>
+          <div class="p-4 rounded-xl bg-dark-900 border border-white/10">
+            <span class="text-slate-400 block mb-1">Gradiente en Dirección Norte-Sur ($\partial y$):</span>
+            <div class="text-white">
+              $$\frac{\partial Z}{\partial y}(i, j) \approx \frac{Z(i-1, j) - Z(i+1, j)}{2 \Delta y}$$
+            </div>
+          </div>
+        </div>
+
+        <!-- TARJETA MATEMÁTICA COSTO CINEMÁTICO -->
+        <div class="p-6 sm:p-8 rounded-2xl math-card space-y-4">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <span class="text-xs font-mono text-brand-400 font-bold flex items-center gap-2">
+              <i class="fa-solid fa-bolt"></i> Ecuación 6: Modelo de Energía Operativa y Restricción de Volcadura
+            </span>
+            <span class="text-[0.65rem] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300">
+              Dinámica de Rovers Myco
+            </span>
+          </div>
+
+          <p class="text-xs text-slate-300">
+            La magnitud escalar de la pendiente adimensional $S$ y el ángulo físico de cabeceo del chasis $\theta$ son:
+          </p>
+
+          <div class="text-center py-2 text-xs sm:text-sm">
+            $$S = \|\nabla Z\| = \sqrt{\left(\frac{\partial Z}{\partial x}\right)^2 + \left(\frac{\partial Z}{\partial y}\right)^2}, \qquad \theta = \arctan(S)$$
+          </div>
+
+          <p class="text-xs text-slate-300">
+            El coste energético de desplazamiento para un rover que transita un tramo recto desde el punto $A$ al punto $B$ con distancia euclídea tridimensional $d_{AB}$ se modela como:
+          </p>
+
+          <div class="text-center py-2 text-xs sm:text-sm text-brand-400 font-bold">
+            $$E_{\text{tramo}}(A \to B) = \big( d_{AB} \cdot k_0 \big) + \big( \max(0, z_B - z_A) \cdot k_1 \big)$$
+          </div>
+
+          <p class="text-xs text-slate-400">
+            Donde $k_0 = 5.0\,\text{J/m}$ (fricción rodante en terreno horizontal) y $k_1 = 25.0\,\text{J/m}$ (trabajo mecánico contra el potencial gravitatorio $m \cdot g$).
+          </p>
+
+          <div class="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-xs text-red-300 space-y-1">
+            <strong>Restricción Geométrica Crítica de Inestabilidad:</strong>
+            <p>
+              $$\text{Si } \theta_{AB} = \arctan\left(\frac{|z_B - z_A|}{d_{\text{horiz}}}\right) > 25^\circ \implies \text{Costo}(A \to B) = +\infty$$
+            </p>
+            <p class="text-slate-400">
+              El planificador TSP descarta automáticamente cualquier arista que supere los $25^\circ$, forzando al rover a rodear la cresta o seguir curvas de nivel iso-altimétricas.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 7: CÓDIGO FUENTE DE REFERENCIA -->
+      <section id="cap7" class="space-y-6">
+        <div class="flex items-center gap-2 text-brand-400 font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo VII</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2">
+          7. Implementación de Referencia en Producción
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed">
+          A continuación se presentan los fragmentos de código canónicos implementados en el microservicio de IA (Python) y en la interfaz de usuario (React/JS):
+        </p>
+
+        <!-- SNIPPET PYTHON -->
+        <div class="rounded-2xl bg-dark-900 border border-white/10 overflow-hidden font-mono text-xs shadow-xl">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-dark-800/80 border-b border-white/10">
+            <span class="text-brand-400 font-bold flex items-center gap-2">
+              <i class="fa-brands fa-python text-sm"></i> Backend Flask / SciPy (Interpolación Clough-Tocher)
+            </span>
+            <span class="text-[0.65rem] text-slate-400">myco_ia/python/ruteo_rovers.py</span>
+          </div>
+          <pre class="p-4 text-slate-300 overflow-x-auto leading-relaxed"><code><span class="text-purple-400">import</span> numpy <span class="text-purple-400">as</span> np
+<span class="text-purple-400">from</span> scipy.interpolate <span class="text-purple-400">import</span> griddata
+
+<span class="text-slate-500"># 1. Puntos dispersos de la malla base discretizada (16x16)</span>
+puntos_muestreo = np.array([[lat_k, lng_k] <span class="text-purple-400">for</span> lat_k, lng_k <span class="text-purple-400">in</span> coordenadas_base])
+valores_z = np.array([elevacion_decodificada_rgb(r, g, b) <span class="text-purple-400">for</span> r, g, b <span class="text-purple-400">in</span> muestra_rgb])
+
+<span class="text-slate-500"># 2. Generación de la malla objetivo densa (submétrica)</span>
+grid_lat, grid_lng = np.mgrid[
+    lat_min:lat_max:complex(0, n_denso),
+    lng_min:lng_max:complex(0, n_denso)
+]
+
+<span class="text-slate-500"># 3. Interpolación Cúbica de Clough-Tocher C1-continua</span>
+z_interpolado = griddata(
+    points=puntos_muestreo,
+    values=valores_z,
+    xi=(grid_lat, grid_lng),
+    method=<span class="text-emerald-400">'cubic'</span>,
+    fill_value=np.mean(valores_z)  <span class="text-slate-500"># Relleno seguro en bordes</span>
+)</code></pre>
+        </div>
+
+        <!-- SNIPPET JAVASCRIPT -->
+        <div class="rounded-2xl bg-dark-900 border border-white/10 overflow-hidden font-mono text-xs shadow-xl">
+          <div class="flex items-center justify-between px-4 py-2.5 bg-dark-800/80 border-b border-white/10">
+            <span class="text-accent-cyan font-bold flex items-center gap-2">
+              <i class="fa-brands fa-js text-sm"></i> Frontend Canvas (Decodificación Hipsométrica Terrain-RGB)
+            </span>
+            <span class="text-[0.65rem] text-slate-400">frontend/src/views/CrearTerrenoView.jsx</span>
+          </div>
+          <pre class="p-4 text-slate-300 overflow-x-auto leading-relaxed"><code><span class="text-purple-400">function</span> <span class="text-cyan-300">decodificarMapboxRGB</span>(r, g, b) {
+  <span class="text-slate-500">// Fórmula Mapbox Terrain-RGB: -10000 + (R*256^2 + G*256 + B) * 0.1</span>
+  <span class="text-purple-400">const</span> rawInt = (r &lt;&lt; <span class="text-amber-400">16</span>) + (g &lt;&lt; <span class="text-amber-400">8</span>) + b;
+  <span class="text-purple-400">const</span> elevacionMetros = -<span class="text-amber-400">10000.0</span> + (rawInt * <span class="text-amber-400">0.1</span>);
+  <span class="text-purple-400">return</span> Number(elevacionMetros.toFixed(<span class="text-amber-400">2</span>));
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- CAPÍTULO 8: LABORATORIO INTERACTIVO (SANDBOX) -->
+      <section id="sandbox" class="space-y-8 pt-4">
+        <div class="flex items-center gap-2 text-accent-cyan font-mono text-xs font-bold tracking-widest uppercase">
+          <span>Capítulo VIII &bull; Herramientas Interactivas</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl font-bold font-display text-white border-b border-white/10 pb-2 flex items-center gap-3">
+          <i class="fa-solid fa-flask text-accent-cyan"></i>
+          8. Laboratorio Interactivo de Validación Topográfica
+        </h2>
+
+        <p class="text-slate-300 text-sm leading-relaxed text-justify">
+          Experimente en tiempo real con las fórmulas matemáticas descritas en esta monografía. Ajuste los canales RGB para inspeccionar la decodificación altimétrica, visualice la transición continua de un campo interpolado o simule la viabilidad cinemática de un tramo de rover.
+        </p>
+
+        <!-- WIDGET 1: CALCULADORA RGB EN VIVO -->
+        <div class="p-6 sm:p-8 rounded-2xl bg-dark-900 border border-white/10 space-y-6">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <span class="text-sm font-mono text-white font-bold flex items-center gap-2">
+              <i class="fa-solid fa-palette text-accent-cyan"></i> 8.1 Decodificador Radiométrico Interactivo Terrain-RGB
+            </span>
+            <span class="text-xs font-mono text-brand-400">Tiempo Real</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <!-- Deslizadores RGB -->
+            <div class="space-y-4 font-mono text-xs">
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-red-400 font-bold">Canal Rojo (R):</span>
+                  <span id="valR" class="text-white font-bold">1</span>
+                </div>
+                <input id="rangeR" type="range" min="0" max="255" value="1" class="w-full accent-red-500 bg-dark-800">
+              </div>
+
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-green-400 font-bold">Canal Verde (G):</span>
+                  <span id="valG" class="text-white font-bold">134</span>
+                </div>
+                <input id="rangeG" type="range" min="0" max="255" value="134" class="w-full accent-green-500 bg-dark-800">
+              </div>
+
+              <div>
+                <div class="flex justify-between mb-1">
+                  <span class="text-blue-400 font-bold">Canal Azul (B):</span>
+                  <span id="valB" class="text-white font-bold">160</span>
+                </div>
+                <input id="rangeB" type="range" min="0" max="255" value="160" class="w-full accent-blue-500 bg-dark-800">
+              </div>
+
+              <div class="pt-2 flex items-center gap-3">
+                <span class="text-slate-400">Muestra de Color:</span>
+                <div id="swatchBox" class="w-12 h-6 rounded border border-white/20 shadow" style="background-color: rgb(1, 134, 160);"></div>
+                <span id="hexCode" class="text-slate-400 text-[0.7rem]">#0186A0</span>
+              </div>
+            </div>
+
+            <!-- Panel de Resultados Matemáticos -->
+            <div class="p-5 rounded-xl bg-dark-850 border border-white/10 space-y-3 font-mono text-xs">
+              <div class="text-slate-400 text-[0.7rem] uppercase tracking-wider">Desglose de Operación Aritmética</div>
+              
+              <div class="space-y-1 text-slate-300">
+                <div class="text-[0.68rem] text-slate-400">Entero Acumulado de 24 bits:</div>
+                <div id="rawIntDisplay" class="text-accent-cyan font-bold text-sm">100,000</div>
+              </div>
+
+              <div class="pt-2 border-t border-white/5 space-y-1">
+                <div class="text-[0.68rem] text-slate-400">Elevación Física Calculada ($h$):</div>
+                <div class="flex items-baseline gap-2">
+                  <span id="elevDisplay" class="text-2xl font-bold text-brand-400">0.00</span>
+                  <span class="text-slate-400 text-sm">metros s.n.m.</span>
+                </div>
+              </div>
+
+              <div id="zonaAltimetrica" class="px-2.5 py-1 rounded bg-brand-500/10 text-brand-300 text-[0.68rem] inline-block border border-brand-500/20">
+                Nivel Medio del Mar (Cota Cero)
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WIDGET 2: SIMULADOR VISUAL DE INTERPOLACIÓN 2D EN CANVAS -->
+        <div class="p-6 sm:p-8 rounded-2xl bg-dark-900 border border-white/10 space-y-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/10 pb-3 gap-3">
+            <div>
+              <span class="text-sm font-mono text-white font-bold flex items-center gap-2">
+                <i class="fa-solid fa-braille text-brand-400"></i> 8.2 Comparador Visual de Superficie Interpolada 2D
+              </span>
+              <span class="text-xs text-slate-400 font-sans block mt-0.5">
+                Visualice el mapa de calor topográfico generado a partir de una rejilla de control $4 \times 4$.
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2 font-mono text-xs">
+              <button id="btnModoDiscreto" class="px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 border border-white/10">
+                Base ($4 \times 4$)
+              </button>
+              <button id="btnModoBilineal" class="px-3 py-1 rounded bg-brand-500 text-black font-bold shadow-md shadow-brand-500/20">
+                Bilineal ($32 \times 32$)
+              </button>
+              <button id="btnRegenerarMalla" class="px-2.5 py-1 rounded bg-accent-cyan/10 hover:bg-accent-cyan/20 text-accent-cyan border border-accent-cyan/20">
+                <i class="fa-solid fa-rotate-right"></i> Terreno Aleatorio
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+            <!-- Lienzo Canvas -->
+            <div class="lg:col-span-2 flex justify-center bg-dark-950 p-4 rounded-xl border border-white/10 shadow-inner">
+              <canvas id="demCanvas" width="360" height="360" class="rounded-lg shadow-lg max-w-full h-auto cursor-crosshair"></canvas>
+            </div>
+
+            <!-- Panel de Información de la Celda Muestreada -->
+            <div class="p-5 rounded-xl bg-dark-850 border border-white/10 font-mono text-xs space-y-4">
+              <span class="text-slate-400 uppercase text-[0.7rem] block border-b border-white/10 pb-1.5 font-bold">
+                Inspección de Nodo
+              </span>
+              <p class="text-slate-400 text-[0.75rem]">
+                Mueva el cursor sobre el lienzo para inspeccionar la cota interpolada en $(x, y)$:
+              </p>
+              
+              <div class="bg-black/40 p-3 rounded-lg border border-white/5 space-y-1.5">
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Coordenada Relativa:</span>
+                  <span id="hoverCoord" class="text-white font-bold">(0.50, 0.50)</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Cota Interpolada:</span>
+                  <span id="hoverElev" class="text-brand-400 font-bold">1245.2 m</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-slate-400">Pendiente Local Estimada:</span>
+                  <span id="hoverPendiente" class="text-accent-cyan font-bold">3.8&deg; (Segura)</span>
+                </div>
+              </div>
+
+              <div class="text-[0.68rem] text-slate-400 leading-normal border-t border-white/10 pt-2">
+                <span class="text-amber-400 font-bold block mb-1">Código de Color Altimétrico:</span>
+                Azul marino: Depresiones viales &bull; Verde esmeralda: Planicies agrícolas &bull; Amarillo/Marrón: Mesetas elevadas.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WIDGET 3: SIMULADOR DE PENDIENTE Y COSTO CINEMÁTICO -->
+        <div class="p-6 sm:p-8 rounded-2xl bg-dark-900 border border-white/10 space-y-6">
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <span class="text-sm font-mono text-white font-bold flex items-center gap-2">
+              <i class="fa-solid fa-truck-monster text-amber-400"></i> 8.3 Calculadora de Viabilidad de Tránsito & Coste Energético de Tramo
+            </span>
+            <span class="text-xs font-mono text-amber-400">Seguridad Rover</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center font-mono text-xs">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-slate-400 mb-1">Distancia Horizontal del Tramo ($d_{\text{horiz}}$ en metros):</label>
+                <input id="inputDist" type="number" value="15.0" step="0.5" class="w-full p-2.5 rounded bg-dark-800 border border-white/10 text-white font-mono">
+              </div>
+
+              <div>
+                <label class="block text-slate-400 mb-1">Desnivel Altimétrico ($\Delta h = z_B - z_A$ en metros):</label>
+                <input id="inputDeltaH" type="number" value="4.5" step="0.1" class="w-full p-2.5 rounded bg-dark-800 border border-white/10 text-white font-mono">
+              </div>
+
+              <button id="btnCalcularTramo" class="w-full py-2.5 rounded bg-brand-500 hover:bg-brand-600 text-black font-bold text-xs transition-colors shadow-lg shadow-brand-500/20">
+                Evaluar Factibilidad Cinemática
+              </button>
+            </div>
+
+            <!-- Resultados del tramo -->
+            <div id="resultadoTramoBox" class="p-5 rounded-xl bg-dark-850 border border-white/10 space-y-3">
+              <div class="text-slate-400 text-[0.7rem] uppercase tracking-wider">Dictamen de Tránsito</div>
+              <div id="dictamenAlerta" class="text-sm font-bold text-brand-400 flex items-center gap-2">
+                <i class="fa-solid fa-circle-check"></i> Tramo Seguro para Navegación
+              </div>
+              <div class="space-y-1.5 text-slate-300">
+                <div class="flex justify-between">
+                  <span>Ángulo de Inclinación ($\theta$):</span>
+                  <span id="resAngulo" class="text-white font-bold">16.70&deg;</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Distancia 3D Real ($d_{3D}$):</span>
+                  <span id="resDist3D" class="text-white font-bold">15.66 m</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Energía Requerida ($E$):</span>
+                  <span id="resEnergia" class="text-accent-cyan font-bold">190.8 J</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>Tiempo Estimado a Velocidad Adaptativa:</span>
+                  <span id="resTiempo" class="text-amber-400 font-bold">52.2 s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- SECCIÓN 9: REFERENCIAS BIBLIOGRÁFICAS -->
+      <section id="referencias" class="border-t border-white/10 pt-10 space-y-4 text-xs text-slate-400 font-mono">
+        <h3 class="text-sm font-bold text-white uppercase tracking-wider font-display flex items-center gap-2">
+          <i class="fa-solid fa-book text-brand-400"></i> Referencias Bibliográficas & Especificaciones Técnicas
+        </h3>
+        <ol class="list-decimal pl-5 space-y-2 leading-relaxed">
+          <li>
+            Mapbox Inc. (2020). <em>Mapbox Terrain-RGB: Encoding and decoding raster digital elevation models</em>. Mapbox Platform Documentation.
+          </li>
+          <li>
+            Snyder, J. P. (1987). <em>Map Projections: A Working Manual</em>. U.S. Geological Survey Professional Paper 1395, Washington, D.C., pp. 38–47.
+          </li>
+          <li>
+            Clough, R. W., & Tocher, J. L. (1965). <em>Finite element stiffness matrices for analysis of plates in bending</em>. Proceedings of Conference on Matrix Methods in Structural Mechanics, Wright-Patterson AFB, Ohio.
+          </li>
+          <li>
+            Virtanen, P., Gommers, R., Oliphant, T. E., et al. (2020). <em>SciPy 1.0: fundamental algorithms for scientific computing in Python</em>. Nature Methods, 17(3), 261–272.
+          </li>
+          <li>
+            Delaunay, B. (1934). <em>Sur la sphère vide. A la mémoire de Georges Voronoï</em>. Bulletin de l'Académie des Sciences de l'URSS. Classe des sciences mathématiques et naturelles, 6, 793–800.
+          </li>
+          <li>
+            Hengl, T., et al. (2017). <em>SoilGrids250m: Global gridded soil information based on machine learning</em>. PLOS ONE, 12(2), e0169748.
+          </li>
+        </ol>
+      </section>
+
+    </article>
+  </main>
+
+  <!-- ─── FOOTER ─── -->
+  <footer class="border-t border-white/10 bg-dark-950 py-10 text-xs font-mono text-slate-500">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <i class="fa-solid fa-seedling text-brand-400 text-sm"></i>
+        <span>Plataforma Bio-Robótica Myco &bull; Serie de Monografías Científicas 2026.</span>
+      </div>
+      <div class="flex items-center gap-4 text-slate-400">
+        <span>EPSG:3857 &bull; Terrain-RGB v4</span>
+        <span>SciPy Clough-Tocher C1</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── SCRIPT INTERACTIVO DEL LABORATORIO ─── -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // ──────────────────────────────────────────
+      // 1. CONTROLADOR DE LA CALCULADORA RGB
+      // ──────────────────────────────────────────
+      const rangeR = document.getElementById('rangeR');
+      const rangeG = document.getElementById('rangeG');
+      const rangeB = document.getElementById('rangeB');
+      const valR = document.getElementById('valR');
+      const valG = document.getElementById('valG');
+      const valB = document.getElementById('valB');
+      const swatchBox = document.getElementById('swatchBox');
+      const hexCode = document.getElementById('hexCode');
+      const rawIntDisplay = document.getElementById('rawIntDisplay');
+      const elevDisplay = document.getElementById('elevDisplay');
+      const zonaAltimetrica = document.getElementById('zonaAltimetrica');
+
+      function actualizarRGB() {
+        const r = parseInt(rangeR.value);
+        const g = parseInt(rangeG.value);
+        const b = parseInt(rangeB.value);
+
+        valR.textContent = r;
+        valG.textContent = g;
+        valB.textContent = b;
+
+        const rawInt = (r << 16) + (g << 8) + b;
+        const elev = -10000.0 + (rawInt * 0.1);
+
+        swatchBox.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+        const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
+        hexCode.textContent = hex;
+
+        rawIntDisplay.textContent = rawInt.toLocaleString();
+        elevDisplay.textContent = elev.toFixed(2);
+
+        // Clasificación de la zona hipsométrica
+        if (elev < 0) {
+          zonaAltimetrica.textContent = 'Depresión Submarina o Fosa Cóncava';
+          zonaAltimetrica.className = 'px-2.5 py-1 rounded bg-blue-500/20 text-blue-300 text-[0.68rem] inline-block border border-blue-500/30';
+        } else if (elev < 500) {
+          zonaAltimetrica.textContent = 'Zona Baja (Llanura / Escorrentía Hídrica)';
+          zonaAltimetrica.className = 'px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[0.68rem] inline-block border border-emerald-500/30';
+        } else if (elev < 1800) {
+          zonaAltimetrica.textContent = 'Zona Media (Valle Agrícola / Humedad Óptima)';
+          zonaAltimetrica.className = 'px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 text-[0.68rem] inline-block border border-amber-500/30';
+        } else {
+          zonaAltimetrica.textContent = 'Zona Alta (Meseta / Pendiente Elevada)';
+          zonaAltimetrica.className = 'px-2.5 py-1 rounded bg-red-500/20 text-red-300 text-[0.68rem] inline-block border border-red-500/30';
+        }
+      }
+
+      rangeR.addEventListener('input', actualizarRGB);
+      rangeG.addEventListener('input', actualizarRGB);
+      rangeB.addEventListener('input', actualizarRGB);
+      actualizarRGB();
+
+      // ──────────────────────────────────────────
+      // 2. SIMULADOR DE INTERPOLACIÓN 2D EN CANVAS
+      // ──────────────────────────────────────────
+      const canvas = document.getElementById('demCanvas');
+      const ctx = canvas.getContext('2d');
+      const btnModoDiscreto = document.getElementById('btnModoDiscreto');
+      const btnModoBilineal = document.getElementById('btnModoBilineal');
+      const btnRegenerarMalla = document.getElementById('btnRegenerarMalla');
+      const hoverCoord = document.getElementById('hoverCoord');
+      const hoverElev = document.getElementById('hoverElev');
+      const hoverPendiente = document.getElementById('hoverPendiente');
+
+      let modoVisual = 'bilineal'; // 'discreto' | 'bilineal'
+      let gridBase = [];
+      const GRID_DIM = 4; // Malla de control 4x4
+
+      function generarMallaAleatoria() {
+        gridBase = [];
+        const baseH = 1200.0;
+        for (let r = 0; r < GRID_DIM; r++) {
+          const row = [];
+          for (let c = 0; c < GRID_DIM; c++) {
+            // Genera ondulaciones suaves simuladas
+            const bump = Math.sin(r * 1.2) * 80 + Math.cos(c * 1.4) * 60 + (Math.random() * 30);
+            row.push(baseH + bump);
+          }
+          row.push();
+          gridBase.push(row);
+        }
+        dibujarLienzo();
+      }
+
+      function interpolarBilineal(u, v) {
+        // u, v in [0, 1]
+        const r_float = u * (GRID_DIM - 1);
+        const c_float = v * (GRID_DIM - 1);
+
+        const r0 = Math.floor(r_float);
+        const r1 = Math.min(r0 + 1, GRID_DIM - 1);
+        const c0 = Math.floor(c_float);
+        const c1 = Math.min(c0 + 1, GRID_DIM - 1);
+
+        const dr = r_float - r0;
+        const dc = c_float - c0;
+
+        const z00 = gridBase[r0][c0];
+        const z01 = gridBase[r0][c1];
+        const z10 = gridBase[r1][c0];
+        const z11 = gridBase[r1][c1];
+
+        return (1 - dr) * (1 - dc) * z00 +
+               (1 - dr) * dc * z01 +
+               dr * (1 - dc) * z10 +
+               dr * dc * z11;
+      }
+
+      function colorPorElevacion(h) {
+        // Mapeo hipsométrico: 1100m (azul marino) -> 1250m (verde esmeralda) -> 1380m (dorado/ámbar)
+        const t = Math.max(0, Math.min(1, (h - 1100) / 280));
+        if (t < 0.5) {
+          const s = t / 0.5;
+          const r = Math.round(15 * (1 - s) + 16 * s);
+          const g = Math.round(30 * (1 - s) + 185 * s);
+          const b = Math.round(120 * (1 - s) + 129 * s);
+          return `rgb(${r}, ${g}, ${b})`;
+        } else {
+          const s = (t - 0.5) / 0.5;
+          const r = Math.round(16 * (1 - s) + 245 * s);
+          const g = Math.round(185 * (1 - s) + 158 * s);
+          const b = Math.round(129 * (1 - s) + 11 * s);
+          return `rgb(${r}, ${g}, ${b})`;
+        }
+      }
+
+      function dibujarLienzo() {
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        if (modoVisual === 'discreto') {
+          const cellW = W / GRID_DIM;
+          const cellH = H / GRID_DIM;
+          for (let r = 0; r < GRID_DIM; r++) {
+            for (let c = 0; c < GRID_DIM; c++) {
+              const val = gridBase[r][c];
+              ctx.fillStyle = colorPorElevacion(val);
+              ctx.fillRect(c * cellW, r * cellH, cellW, cellH);
+
+              // Cuadrícula
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+              ctx.strokeRect(c * cellW, r * cellH, cellW, cellH);
+
+              // Texto con cota
+              ctx.fillStyle = '#ffffff';
+              ctx.font = 'bold 11px Fira Code';
+              ctx.textAlign = 'center';
+              ctx.fillText(`${val.toFixed(1)}m`, c * cellW + cellW / 2, r * cellH + cellH / 2 + 4);
+            }
+          }
+        } else {
+          // Modo Bilineal de Alta Resolución (Malla 36x36 celdas visuales)
+          const STEPS = 36;
+          const stepW = W / STEPS;
+          const stepH = H / STEPS;
+
+          for (let i = 0; i < STEPS; i++) {
+            for (let j = 0; j < STEPS; j++) {
+              const u = i / (STEPS - 1);
+              const v = j / (STEPS - 1);
+              const hVal = interpolarBilineal(u, v);
+
+              ctx.fillStyle = colorPorElevacion(hVal);
+              ctx.fillRect(j * stepW, i * stepH, stepW + 1, stepH + 1);
+            }
+          }
+
+          // Dibuja los 16 nodos de control originales con anillos blancos
+          for (let r = 0; r < GRID_DIM; r++) {
+            for (let c = 0; c < GRID_DIM; c++) {
+              const xPos = (c / (GRID_DIM - 1)) * (W - 20) + 10;
+              const yPos = (r / (GRID_DIM - 1)) * (H - 20) + 10;
+
+              ctx.beginPath();
+              ctx.arc(xPos, yPos, 4, 0, Math.PI * 2);
+              ctx.fillStyle = '#ffffff';
+              ctx.fill();
+              ctx.lineWidth = 1.5;
+              ctx.strokeStyle = '#000000';
+              ctx.stroke();
+            }
+          }
+        }
+      }
+
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const u = Math.max(0, Math.min(1, mouseY / rect.height));
+        const v = Math.max(0, Math.min(1, mouseX / rect.width));
+
+        const hVal = interpolarBilineal(u, v);
+        hoverCoord.textContent = `(${u.toFixed(2)}, ${v.toFixed(2)})`;
+        hoverElev.textContent = `${hVal.toFixed(1)} m`;
+
+        // Cálculo numérico aproximado de pendiente local
+        const eps = 0.02;
+        const h_dx = interpolarBilineal(u, Math.min(1, v + eps)) - interpolarBilineal(u, Math.max(0, v - eps));
+        const h_dy = interpolarBilineal(Math.min(1, u + eps), v) - interpolarBilineal(Math.max(0, u - eps), v);
+        const distMetrosSim = 10.0; // 10 metros simulados por ancho de parcela
+        const gradM = Math.sqrt(h_dx * h_dx + h_dy * h_dy) / (eps * distMetrosSim);
+        const angleDeg = Math.atan(gradM) * (180 / Math.PI);
+
+        if (angleDeg > 25) {
+          hoverPendiente.textContent = `${angleDeg.toFixed(1)}° (¡Peligro Volcadura!)`;
+          hoverPendiente.className = 'text-red-400 font-bold';
+        } else if (angleDeg > 15) {
+          hoverPendiente.textContent = `${angleDeg.toFixed(1)}° (Precaución)`;
+          hoverPendiente.className = 'text-amber-400 font-bold';
+        } else {
+          hoverPendiente.textContent = `${angleDeg.toFixed(1)}° (Segura)`;
+          hoverPendiente.className = 'text-emerald-400 font-bold';
+        }
+      });
+
+      btnModoDiscreto.addEventListener('click', () => {
+        modoVisual = 'discreto';
+        btnModoDiscreto.className = 'px-3 py-1 rounded bg-brand-500 text-black font-bold shadow-md shadow-brand-500/20';
+        btnModoBilineal.className = 'px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 border border-white/10';
+        dibujarLienzo();
+      });
+
+      btnModoBilineal.addEventListener('click', () => {
+        modoVisual = 'bilineal';
+        btnModoBilineal.className = 'px-3 py-1 rounded bg-brand-500 text-black font-bold shadow-md shadow-brand-500/20';
+        btnModoDiscreto.className = 'px-3 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 border border-white/10';
+        dibujarLienzo();
+      });
+
+      btnRegenerarMalla.addEventListener('click', generarMallaAleatoria);
+      generarMallaAleatoria();
+
+      // ──────────────────────────────────────────
+      // 3. CALCULADORA DE CINEMÁTICA Y VOLCADURA
+      // ──────────────────────────────────────────
+      const inputDist = document.getElementById('inputDist');
+      const inputDeltaH = document.getElementById('inputDeltaH');
+      const btnCalcularTramo = document.getElementById('btnCalcularTramo');
+      const dictamenAlerta = document.getElementById('dictamenAlerta');
+      const resAngulo = document.getElementById('resAngulo');
+      const resDist3D = document.getElementById('resDist3D');
+      const resEnergia = document.getElementById('resEnergia');
+      const resTiempo = document.getElementById('resTiempo');
+
+      function calcularFactibilidadTramo() {
+        const d_horiz = parseFloat(inputDist.value) || 1.0;
+        const dh = parseFloat(inputDeltaH.value) || 0.0;
+
+        const d_3d = Math.sqrt(d_horiz * d_horiz + dh * dh);
+        const thetaRad = Math.atan(Math.abs(dh) / d_horiz);
+        const thetaDeg = thetaRad * (180 / Math.PI);
+
+        // Constantes operativas de mejoras.txt
+        const k0 = 5.0;  // J/m plano
+        const k1 = 25.0; // J/m elevación
+        const vBase = 0.5; // m/s
+        let factorV = 1.0;
+
+        const pendienteRel = dh / d_horiz;
+        if (pendienteRel > 0.10) {
+          factorV = 0.60; // Subida
+        } else if (pendienteRel < -0.10) {
+          factorV = 0.80; // Bajada con freno
+        }
+
+        const vEfectiva = vBase * factorV;
+        const tiempoSegundos = (d_3d / vEfectiva) + 15.0; // 15s de muestreo sensor
+        const energiaJoules = (d_3d * k0) + (Math.max(0, dh) * k1);
+
+        resAngulo.textContent = `${thetaDeg.toFixed(2)}°`;
+        resDist3D.textContent = `${d_3d.toFixed(2)} m`;
+        resEnergia.textContent = `${energiaJoules.toFixed(1)} J (${(energiaJoules / 3600).toFixed(3)} Wh)`;
+        resTiempo.textContent = `${tiempoSegundos.toFixed(1)} s`;
+
+        if (thetaDeg > 25.0) {
+          dictamenAlerta.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-400"></i> ¡INFACTIBLE! Supera límite de volcadura (25°)';
+          dictamenAlerta.className = 'text-sm font-bold text-red-400 flex items-center gap-2';
+        } else if (thetaDeg > 18.0) {
+          dictamenAlerta.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-400"></i> Factible con precaución (Pendiente alta)';
+          dictamenAlerta.className = 'text-sm font-bold text-amber-400 flex items-center gap-2';
+        } else {
+          dictamenAlerta.innerHTML = '<i class="fa-solid fa-circle-check text-brand-400"></i> Tramo Seguro para Navegación';
+          dictamenAlerta.className = 'text-sm font-bold text-brand-400 flex items-center gap-2';
+        }
+      }
+
+      btnCalcularTramo.addEventListener('click', calcularFactibilidadTramo);
+      inputDist.addEventListener('input', calcularFactibilidadTramo);
+      inputDeltaH.addEventListener('input', calcularFactibilidadTramo);
+      calcularFactibilidadTramo();
+    });
+  </script>
+
+</body>
+
+</html>
