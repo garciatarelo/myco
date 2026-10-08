@@ -105,8 +105,17 @@ def planificar_mision_muestreo(poligono_coords, matriz_dem_raw, rovers_config, o
     # 1. Crear geometría Shapely
     poly_pts = []
     for pt in poligono_coords:
-        if isinstance(pt, (list, tuple)) and len(pt) >= 2:
+        if isinstance(pt, dict):
+            lon = pt.get("lng") if "lng" in pt else pt.get("lon", pt.get("x"))
+            lat = pt.get("lat") if "lat" in pt else pt.get("y")
+            if lon is not None and lat is not None:
+                poly_pts.append((float(lon), float(lat)))
+        elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
             poly_pts.append((float(pt[0]), float(pt[1])))  # [lng, lat]
+
+    if len(poly_pts) < 3:
+        raise ValueError("Se requieren al menos 3 vértices válidos para el polígono.")
+
     if poly_pts[0] != poly_pts[-1]:
         poly_pts.append(poly_pts[0])
 

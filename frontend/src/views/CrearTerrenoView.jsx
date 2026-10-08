@@ -39,39 +39,6 @@ const EARTH_SATELLITE_STYLE = {
   ],
 };
 
-const MARS_VIKING_STYLE = {
-  version: 8,
-  name: 'Mars Viking MDIM 2.1',
-  sources: {
-    'nasa-mars': {
-      type: 'raster',
-      tiles: [
-        'https://trek.nasa.gov/tiles/Mars/EQ/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg',
-      ],
-      tileSize: 256,
-      maxzoom: 12,
-      attribution: '© NASA Mars Trek / Viking MDIM 2.1',
-    },
-  },
-  layers: [
-    {
-      id: 'mars-bg',
-      type: 'background',
-      paint: { 'background-color': '#0d0907' },
-    },
-    {
-      id: 'nasa-mars-layer',
-      type: 'raster',
-      source: 'nasa-mars',
-      paint: {
-        'raster-fade-duration': 300,
-        'raster-contrast': 0.15,
-        'raster-saturation': 0.1,
-      },
-    },
-  ],
-};
-
 const PRESETS_TERRENO = [
   {
     label: 'Chihuahua — Valle Piloto (Tierra)',
@@ -83,13 +50,13 @@ const PRESETS_TERRENO = [
     wifi: 'Myco-Chihuahua-Mesh',
   },
   {
-    label: 'Cráter Jezero — Delta Ares (Marte)',
-    entorno: 'marte',
-    lat: 18.3800,
-    lon: 77.5800,
-    m2: 50000,
-    desc: 'Regolito marciano xerotolerante con radiación UV y baja presión atmosférica.',
-    wifi: 'Starlink-Mars-Mesh',
+    label: 'Guanajuato — Valle de Santiago (Tierra)',
+    entorno: 'tierra',
+    lat: 20.3922,
+    lon: -101.1917,
+    m2: 45000,
+    desc: 'Suelos volcánicos agrícolas para biorremediación fúngica y micorrizas.',
+    wifi: 'Bajio-Agro-Mesh',
   },
   {
     label: 'Sonora — Valle del Yaqui (Tierra)',
@@ -273,6 +240,9 @@ export default function CrearTerrenoView() {
 
   // Obtener matriz 2D de elevaciones (Terrain-DEM) escalable conforme a las hectáreas
   async function handleCalcularElevacion(customScale = 1) {
+    // Proteger contra eventos de React si se invoca directamente desde un onClick
+    const scale = (typeof customScale === 'number' && !isNaN(customScale) && customScale >= 1) ? customScale : 1;
+
     setError('');
     if (vertices.length < 3) {
       setError('Debes trazar al menos 3 vértices en el mapa para delimitar la parcela antes de calcular la elevación.');
@@ -338,8 +308,8 @@ export default function CrearTerrenoView() {
             const B = imgData.data[idx + 2];
             elev = Math.round(decodeTerrainRgb(R, G, B) * 10) / 10;
           } catch (tileErr) {
-            // Si el token o CORS falla, o es Marte, estimar basado en modelo barométrico del preset
-            const baseAlt = formData.entorno === 'marte' ? -2500 : 1450;
+            // Si el token o CORS falla, estimar basado en modelo topográfico local
+            const baseAlt = 1450;
             elev = Math.round((baseAlt + Math.sin(r * 0.4) * 8 + Math.cos(c * 0.4) * 6) * 10) / 10;
           }
 
@@ -372,15 +342,15 @@ export default function CrearTerrenoView() {
       const rawMatrix = elevationGrid.map((row) => row.map((cell) => cell.elevation_m));
 
       // Si se solicita alta resolución / factor de escala (ej. 2x o 4x como sugiere mejoras.txt)
-      const interpolatedMatrix = customScale > 1 ? interpolarMatrizDEM(rawMatrix, customScale) : rawMatrix;
+      const interpolatedMatrix = scale > 1 ? interpolarMatrizDEM(rawMatrix, scale) : rawMatrix;
 
       const result = {
         grid: elevationGrid,
         matrix_2d: rawMatrix,
         interpolated_matrix_2d: interpolatedMatrix,
-        scale_factor: customScale,
+        scale_factor: scale,
         dimensions: { width: gridSize, height: gridSize },
-        interpolated_dimensions: { width: gridSize * customScale, height: gridSize * customScale },
+        interpolated_dimensions: { width: gridSize * scale, height: gridSize * scale },
         hectareas,
         area_m2: areaM2,
         espaciado_metros: Math.round((Math.sqrt(areaM2) / gridSize) * 10) / 10,
@@ -914,7 +884,7 @@ export default function CrearTerrenoView() {
     if (!mapContainerRef.current) return;
 
     const initialCenter = [formData.longitud_central, formData.latitud_central];
-    const initialStyle = formData.entorno === 'marte' ? MARS_VIKING_STYLE : EARTH_SATELLITE_STYLE;
+    const initialStyle = EARTH_SATELLITE_STYLE;
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -944,7 +914,7 @@ export default function CrearTerrenoView() {
         type: 'fill',
         source: 'custom-polygon',
         paint: {
-          'fill-color': formData.entorno === 'marte' ? '#ff4500' : '#10b981',
+          'fill-color': '#10b981',
           'fill-opacity': 0.35,
         },
       });
@@ -955,7 +925,7 @@ export default function CrearTerrenoView() {
         type: 'line',
         source: 'custom-polygon',
         paint: {
-          'line-color': formData.entorno === 'marte' ? '#ff4500' : '#10b981',
+          'line-color': '#10b981',
           'line-width': 2.5,
           'line-dasharray': [2, 1],
         },
@@ -998,7 +968,7 @@ export default function CrearTerrenoView() {
   // Actualizar estilo al cambiar entorno
   useEffect(() => {
     if (!mapRef.current) return;
-    const style = formData.entorno === 'marte' ? MARS_VIKING_STYLE : EARTH_SATELLITE_STYLE;
+    const style = EARTH_SATELLITE_STYLE;
     mapRef.current.setStyle(style);
 
     // Cuando recarga el estilo, volver a registrar capas GeoJSON
@@ -1016,7 +986,7 @@ export default function CrearTerrenoView() {
           type: 'fill',
           source: 'custom-polygon',
           paint: {
-            'fill-color': formData.entorno === 'marte' ? '#ff4500' : '#10b981',
+            'fill-color': '#10b981',
             'fill-opacity': 0.35,
           },
         });
@@ -1025,7 +995,7 @@ export default function CrearTerrenoView() {
           type: 'line',
           source: 'custom-polygon',
           paint: {
-            'line-color': formData.entorno === 'marte' ? '#ff4500' : '#10b981',
+            'line-color': '#10b981',
             'line-width': 2.5,
             'line-dasharray': [2, 1],
           },
@@ -1055,7 +1025,7 @@ export default function CrearTerrenoView() {
       const el = document.createElement('div');
       el.className =
         'flex items-center justify-center w-6 h-6 rounded-full bg-black/90 border-2 font-mono font-bold text-[0.65rem] text-white shadow-lg cursor-pointer transform -translate-x-1/2 -translate-y-1/2';
-      el.style.borderColor = formData.entorno === 'marte' ? '#ff4500' : '#10b981';
+      el.style.borderColor = '#10b981';
       el.innerText = `${index + 1}`;
 
       const marker = new mapboxgl.Marker({ element: el })
@@ -1180,32 +1150,52 @@ export default function CrearTerrenoView() {
 
     setSaving(true);
     try {
-      const closedCoords = [...vertices, vertices[0]];
+      const closedCoords = [...vertices, vertices[0]].map(([lng, lat]) => [Number(lng), Number(lat)]);
       const payload = {
-        ...formData,
+        nombre: formData.nombre || '',
+        descripcion: formData.descripcion || '',
+        entorno: formData.entorno || 'tierra',
+        latitud_central: Number(formData.latitud_central) || 0,
+        longitud_central: Number(formData.longitud_central) || 0,
+        dimensiones_m2: Number(formData.dimensiones_m2) || 0,
+        red_wifi_ssid: formData.red_wifi_ssid || null,
+        red_wifi_pass: formData.red_wifi_pass || null,
+        red_wifi_status: formData.red_wifi_status || 'activa',
         poligono_coordenadas: closedCoords,
-        puntos_inicio_escaneo: scanStartPoints,
+        puntos_inicio_escaneo: scanStartPoints && scanStartPoints.length > 0 ? scanStartPoints.map((pt) => ({
+          id: String(pt.id),
+          lat: Number(pt.lat),
+          lng: Number(pt.lng),
+          robot_id: pt.robot_id ? Number(pt.robot_id) : null,
+          robot_nombre: String(pt.robot_nombre || ''),
+          robot_modelo: String(pt.robot_modelo || ''),
+          robot_modo: String(pt.robot_modo || 'lectura'),
+          robot_bateria: pt.robot_bateria !== null && pt.robot_bateria !== undefined ? Number(pt.robot_bateria) : null,
+          timestamp: pt.timestamp || new Date().toISOString(),
+        })) : null,
         condiciones_terreno: terrainConditions ? {
-          clima: terrainConditions.clima,
-          soil_summary: terrainConditions.soil_summary,
-          sampling_points: terrainConditions.sampling_points,
-          metrics: terrainConditions.metrics,
-          hectareas: terrainConditions.hectareas,
+          clima: terrainConditions.clima || null,
+          soil_summary: terrainConditions.soil_summary || null,
+          sampling_points: terrainConditions.sampling_points || null,
+          metrics: terrainConditions.metrics || null,
+          hectareas: terrainConditions.hectareas || null,
         } : null,
         elevacion_data: elevationData ? {
-          min: elevationData.min,
-          max: elevationData.max,
-          avg: elevationData.avg,
-          diff: elevationData.diff,
-          slope_pct: elevationData.slope_pct,
-          matrix_2d: elevationData.matrix_2d,
-          interpolated_matrix_2d: elevationData.interpolated_matrix_2d,
-          scale_factor: elevationData.scale_factor,
-          dimensions: elevationData.dimensions,
-          interpolated_dimensions: elevationData.interpolated_dimensions,
-          espaciado_metros: elevationData.espaciado_metros,
-          hectareas: elevationData.hectareas,
-          area_m2: elevationData.area_m2,
+          min: Number(elevationData.min),
+          max: Number(elevationData.max),
+          avg: Number(elevationData.avg),
+          diff: Number(elevationData.diff),
+          slope_pct: Number(elevationData.slope_pct),
+          matrix_2d: elevationData.matrix_2d || [],
+          interpolated_matrix_2d: elevationData.interpolated_matrix_2d || null,
+          scale_factor: typeof elevationData.scale_factor === 'number' && !isNaN(elevationData.scale_factor)
+            ? elevationData.scale_factor
+            : 1,
+          dimensions: elevationData.dimensions || { width: 16, height: 16 },
+          interpolated_dimensions: elevationData.interpolated_dimensions || null,
+          espaciado_metros: Number(elevationData.espaciado_metros) || 5.0,
+          hectareas: Number(elevationData.hectareas) || 1.0,
+          area_m2: Number(elevationData.area_m2) || 10000,
         } : null,
         rutas_rovers: routesMissionData?.rutas_rovers || null,
         clusters_muestreo: routesMissionData?.clusters || null,
@@ -1249,15 +1239,21 @@ export default function CrearTerrenoView() {
             </p>
           </div>
 
-          <span
-            className={`px-2 py-0.5 rounded text-[0.65rem] font-bold font-mono uppercase ${
-              formData.entorno === 'marte'
-                ? 'bg-[#ff4500]/15 text-[#ff4500] border border-[#ff4500]/30'
-                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-            }`}
-          >
-            {formData.entorno === 'marte' ? 'Marte' : 'Tierra'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[0.65rem] font-bold font-mono uppercase bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+              <i className="fa-solid fa-earth-americas mr-1" />
+              Planeta Tierra
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate('/terrenos/crear-marte')}
+              className="px-2 py-0.5 rounded text-[0.62rem] font-mono text-gray-400 hover:text-[#ff4500] hover:bg-[#ff4500]/10 border border-transparent hover:border-[#ff4500]/30 transition-all flex items-center gap-1"
+              title="Ir a misión de Marte con NASA Mars Trek"
+            >
+              <i className="fa-solid fa-meteor text-[0.6rem]" />
+              <span>Marte</span>
+            </button>
+          </div>
         </div>
 
         {/* Formulario Scrolleable */}
@@ -1320,14 +1316,15 @@ export default function CrearTerrenoView() {
                 <label className="block text-xs text-gray-300 font-mono mb-1">
                   Entorno Planetario
                 </label>
-                <select
-                  value={formData.entorno}
-                  onChange={(e) => setFormData({ ...formData, entorno: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-black/60 border border-[#262626] text-white text-xs font-mono outline-none focus:border-[#ff4500]"
-                >
-                  <option value="tierra">Tierra (Agrícola)</option>
-                  <option value="marte">Marte (Jezero)</option>
-                </select>
+                <div className="w-full px-3 py-2 rounded-xl bg-black/60 border border-emerald-500/30 text-emerald-400 text-xs font-mono flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 font-bold">
+                    <i className="fa-solid fa-earth-americas text-emerald-400" />
+                    Tierra (Agrícola)
+                  </span>
+                  <span className="text-[0.6rem] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                    1G
+                  </span>
+                </div>
               </div>
 
               <div>
@@ -1581,7 +1578,7 @@ export default function CrearTerrenoView() {
             {/* Botón 2: Calcular Elevación Mapbox Terrain-DEM / Terrain-RGB */}
             <button
               type="button"
-              onClick={handleCalcularElevacion}
+              onClick={() => handleCalcularElevacion(1)}
               disabled={calculatingElevation || vertices.length < 3}
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/20 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 border border-cyan-500/40 text-cyan-300 font-mono font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
             >

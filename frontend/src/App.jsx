@@ -19,6 +19,7 @@ import InyeccionesView from './views/InyeccionesView';
 import GemeloDigitalView from './views/GemeloDigitalView';
 import TerrenosView from './views/TerrenosView';
 import CrearTerrenoView from './views/CrearTerrenoView';
+import CrearTerrenoMarsView from './views/CrearTerrenoMarsView';
 
 function App() {
   return (
@@ -46,6 +47,8 @@ function App() {
             {/* Gestión de Terrenos & Infraestructura */}
             <Route path="/terrenos" element={<TerrenosView />} />
             <Route path="/terrenos/crear" element={<CrearTerrenoView />} />
+            <Route path="/terrenos/crear-marte" element={<CrearTerrenoMarsView />} />
+            <Route path="/terrenos/crear-mars" element={<Navigate to="/terrenos/crear-marte" replace />} />
 
             {/* Redirecciones de conveniencia hacia la Misión de Terreno */}
             <Route path="/mediciones" element={<Navigate to="/mision?tab=mediciones" replace />} />

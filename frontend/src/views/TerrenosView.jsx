@@ -9,6 +9,7 @@ export default function TerrenosView() {
   const [estaciones, setEstaciones] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showMissionModal, setShowMissionModal] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -51,8 +52,8 @@ export default function TerrenosView() {
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => navigate('/terrenos/crear')}
-            className="px-3.5 py-2 rounded-xl bg-[#ff4500] hover:bg-[#ff4500]/90 text-white font-bold text-xs font-mono flex items-center gap-2 shadow-lg shadow-[#ff4500]/20 transition-all"
+            onClick={() => setShowMissionModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-[#ff4500] hover:bg-[#ff4500]/90 text-white font-bold text-xs font-mono flex items-center gap-2 shadow-lg shadow-[#ff4500]/20 transition-all cursor-pointer"
           >
             <i className="fa-solid fa-draw-polygon text-xs" />
             <span>Nuevo Terreno (Trazar Mapa)</span>
@@ -195,6 +196,124 @@ export default function TerrenosView() {
           );
         })}
       </div>
+
+      {/* Modal Selector de Entorno de Misión (Tierra vs Marte) */}
+      {showMissionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-[#161616] border border-[#2b2b2b] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl shadow-black/80 font-mono">
+            {/* Cabecera del Modal */}
+            <div className="p-5 border-b border-[#262626] flex items-center justify-between bg-gradient-to-r from-black/80 via-[#1a1a1a] to-black/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[#ff4500]">
+                  <i className="fa-solid fa-compass-drafting text-lg" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white tracking-wide">
+                    Seleccionar Entorno de Operación
+                  </h2>
+                  <p className="text-xs text-gray-400">
+                    ¿Dónde se llevará a cabo la misión de delimitación y biorremediación?
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMissionModal(false)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-colors"
+              >
+                <i className="fa-solid fa-xmark text-sm" />
+              </button>
+            </div>
+
+            {/* Contenido / Opciones */}
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#111111]">
+              {/* Opción 1: Planeta Tierra */}
+              <div
+                onClick={() => {
+                  setShowMissionModal(false);
+                  navigate('/terrenos/crear');
+                }}
+                className="group relative bg-[#181818] hover:bg-[#1f2621] border border-emerald-500/30 hover:border-emerald-500 rounded-2xl p-5 cursor-pointer transition-all duration-300 flex flex-col justify-between hover:shadow-xl hover:shadow-emerald-500/10 hover:-translate-y-1"
+              >
+                <div className="absolute top-3 right-3">
+                  <span className="px-2 py-0.5 rounded text-[0.62rem] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 uppercase">
+                    Terrestre
+                  </span>
+                </div>
+
+                <div>
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-2xl mb-4 group-hover:scale-110 group-hover:bg-emerald-500/20 transition-all shadow-lg shadow-emerald-500/10">
+                    <i className="fa-solid fa-earth-americas" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-emerald-300 transition-colors">
+                    Planeta Tierra
+                  </h3>
+                  <p className="text-xs text-emerald-400 font-bold mt-0.5 mb-2">
+                    Suelos Agrícolas & Industriales
+                  </p>
+                  <p className="text-[0.72rem] text-gray-400 leading-relaxed">
+                    Cartografía HD satelital con Mapbox, cálculo de condiciones SoilGrids 250m, pH, fertilidad y delimitación poligonal con estaciones base.
+                  </p>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-white/5 flex items-center justify-between text-xs text-emerald-400 font-bold group-hover:translate-x-1 transition-transform">
+                  <span>Trazar en la Tierra</span>
+                  <i className="fa-solid fa-arrow-right" />
+                </div>
+              </div>
+
+              {/* Opción 2: Planeta Marte */}
+              <div
+                onClick={() => {
+                  setShowMissionModal(false);
+                  navigate('/terrenos/crear-marte');
+                }}
+                className="group relative bg-[#181818] hover:bg-[#281c18] border border-[#ff4500]/30 hover:border-[#ff4500] rounded-2xl p-5 cursor-pointer transition-all duration-300 flex flex-col justify-between hover:shadow-xl hover:shadow-[#ff4500]/10 hover:-translate-y-1"
+              >
+                <div className="absolute top-3 right-3">
+                  <span className="px-2 py-0.5 rounded text-[0.62rem] font-bold bg-[#ff4500]/15 text-[#ff4500] border border-[#ff4500]/30 uppercase">
+                    NASA Mars Trek
+                  </span>
+                </div>
+
+                <div>
+                  <div className="w-14 h-14 rounded-2xl bg-[#ff4500]/10 border border-[#ff4500]/30 flex items-center justify-center text-[#ff4500] text-2xl mb-4 group-hover:scale-110 group-hover:bg-[#ff4500]/20 transition-all shadow-lg shadow-[#ff4500]/10">
+                    <i className="fa-solid fa-meteor" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-orange-300 transition-colors">
+                    Planeta Marte
+                  </h3>
+                  <p className="text-xs text-[#ff4500] font-bold mt-0.5 mb-2">
+                    Cráteres & Regolito Marciano
+                  </p>
+                  <p className="text-[0.72rem] text-gray-400 leading-relaxed">
+                    Visor orbital embebido de NASA Mars Trek, selección de parcelas marcianas, asignación de rovers M.Y.C.O y descarga de DEMs / teselas WMTS.
+                  </p>
+                </div>
+
+                <div className="pt-4 mt-4 border-t border-white/5 flex items-center justify-between text-xs text-[#ff4500] font-bold group-hover:translate-x-1 transition-transform">
+                  <span>Trazar en Marte</span>
+                  <i className="fa-solid fa-arrow-right" />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Modal */}
+            <div className="p-3.5 bg-black/80 border-t border-[#262626] flex items-center justify-between text-xs text-gray-400">
+              <span className="text-[0.68rem] flex items-center gap-1.5">
+                <i className="fa-solid fa-circle-info text-sky-400" />
+                Cada entorno adapta los algoritmos de biorremediación y las capas cartográficas.
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMissionModal(false)}
+                className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

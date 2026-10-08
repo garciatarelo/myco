@@ -479,6 +479,23 @@ export const apiService = {
     return response.json();
   },
 
+  async calcularClimaMarte(datos) {
+    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
+    const response = await fetch(`${flaskUrl}/api/clima-marte`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(datos),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Error ${response.status} al consultar clima marciano MCD`);
+    }
+    return response.json();
+  },
+
   async calcularRutasMediciones(datos) {
     const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
     const response = await fetch(`${flaskUrl}/api/calcular-rutas-mediciones`, {
@@ -495,5 +512,23 @@ export const apiService = {
     }
     return response.json();
   },
+
+  async calcularDemMarte(datos) {
+    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
+    const response = await fetch(`${flaskUrl}/api/dem-marte`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(datos),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Error ${response.status} al consultar DEM de Marte`);
+    }
+    return response.json();
+  },
 };
+
 

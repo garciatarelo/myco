@@ -1,156 +1,18 @@
-Estrategia de Muestreo Basada en tu Malla DEM
+# Ejemplo conceptual de cómo se interactúa con el backend de datos del MCD desde Python
+# (Requiere descargar los paquetes y la base de datos NetCDF desde el portal del LMD)
 
-Subdividir la parcela por Zonas de Elevación (Clusters):
-Zona Alta (Rojo - 1472m): Suelos típicamente más secos, mayor exposición al sol, menor retención de humedad. Coloca de 1 a 2 puntos de control arriba.
-Zona Media (Naranja): Es la mayor parte de la parcela. Aquí el gradiente es estable. Diseña una ruta en zigzag o espiral ligera con puntos equidistantes.
-Zona Baja (Verde - 1469m / Esquinas): Zonas de acumulación potencial de humedad y materia orgánica. Coloca al menos 2 puntos estratégicos (uno en cada extremo verde que se ve en tu mapa).
-Algoritmo de ruteo eficiente (Problema del Viajante Modificado - TSP con Gradiente):
-El robot debe iniciar su recorrido en la base o punto de acceso, subir gradualmente hacia la zona alta haciendo mediciones clave y descender en zigzag.
-Ponderación de la distancia vs. cambio de altura: En tu función de costo, desplazar el robot en contra de una pendiente pronunciada gasta más batería. El algoritmo debe preferir trayectorias transversales a las curvas de nivel antes que subidas frontales drásticas.
+# import mars_climate_database as mcd  # Librería interna provista por la base de datos
 
+# Definir la ubicación de la parcela seleccionada por el usuario en el mapa
+latitud = 18.38
+longitud = 77.58
+altura_sobre_suelo = 2.0  # metros (ej. altura a la que mediría un sensor)
 
+# Definir el momento temporal (Ls de 0° a 360°, que representa las estaciones en Marte)
+ls_marte = 120.5 
 
-Para llevar la simulación al terreno físico e integrar la ruta del robot que recolectará los datos de la primera pasada, debes modelar el Problema del Viajante con Costos Operativos (Time-Dependent & Energy-Aware TSP / Orienteering Problem).
-A diferencia de una ruta geométrica pura, el robot gasta más energía subiendo pendientes, su velocidad varía según el tipo de terreno (suelo suelto vs. compacto), y consume tiempo estático en cada punto midiendo pH, humedad y temperatura.
-1. Variables Físicas Clave a Incluir en la Función de Costo
-Para calcular el costo total de viajar de un nodo A a un nodo B y realizar la medición, debes ponderar los siguientes parámetros:
-Gasto de Energía (E 
-total
-​	
- ): Depende de la distancia horizontal, pero drásticamente del cambio de altura (Δh) extraído de tu matriz DEM de Mapbox. Moverse en contra de una pendiente pronunciada requiere más torque en los motores y consume más batería.
-Velocidad del Robot (v): No es constante. Se ve afectada por la pendiente del terreno (el robot desacelera al subir o al bajar con precaución) y por la compactación del suelo (si el terreno es fangoso o muy suelto, hay deslizamiento de orugas/ruedas).
-Tiempo de Medición (T 
-med
-​	
- ): El tiempo estático que el robot se detiene en cada punto de muestreo para estabilizar los sensores de pH y humedad en la tierra.
-Otros Parámetros Esenciales:
-Capacidad / Estado de Bateria Restante (B 
-res
-​	
- ): Un límite estricto de energía; el robot debe planear una ruta de ida y vuelta (o retorno a la base) antes de que la batería caiga por debajo del umbral de seguridad (ej. 20%).
-Rugosidad del Terreno / Obstáculos (R 
-ug
-​	
- ): Derivado de las variaciones del micro-relieve o zonas de alta compactación, que penalizan la velocidad máxima permitida en ese tramo.
-2. Ecuación de la Función de Costo para un Tramo (A→B)
-El costo de viajar entre dos puntos de tu malla se puede modelar como una combinación ponderada de Tiempo y Energía:
-Costo(A→B)=w 
-E
-​	
- ⋅E 
-trayecto
-​	
- (A→B)+w 
-T
-​	
- ⋅(T 
-viaje
-​	
- (A→B)+T 
-med
-​	
- )
-Donde el consumo energético del tramo se calcula integrando la pendiente:
-E 
-trayecto
-​	
- =Distancia 
-AB
-​	
- ⋅(k 
-0
-​	
- +k 
-1
-​	
- ⋅max(0, 
-Distancia 
-AB
-​	
- 
-Δh
-​	
- ))
-Explicación: k 
-0
-​	
-  es el consumo base por metro en terreno plano, y k 
-1
-​	
-  es el factor de penalización extra cuando hay pendiente positiva (Δh>).
-3. Implementación en Código (Python)
-Aquí tienes una función de optimización y cálculo de costos físicos lista para integrar con tu matriz DEM y los puntos de muestreo:
+# Consultar las condiciones climáticas modeladas para esa posición exacta
+# climas = mcd.get_atmospheric_field(lat=latitud, lon=longitud, alt=altura_sobre_suelo, ls=ls_marte)
 
-
-
-
-import numpy as np
-
-def calcular_costo_tramo(coord_a, coord_b, matriz_dem, resolucion_m_por_celda=1.0):
-    """
-    Calcula el costo físico (energía y tiempo) de mover el robot entre el punto A y B
-    considerando distancia, pendiente de la malla DEM y tiempo de medición.
-    """
-    y1, x1 = coord_a
-    y2, x2 = coord_b
-    
-    # 1. Distancia euclidiana en metros
-    distancia_pixels = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-    distancia_metros = distancia_pixels * resolucion_m_por_celda
-    
-    # 2. Desnivel topográfico extraído del DEM de Mapbox
-    alt_a = matriz_dem[y1, x1]
-    alt_b = matriz_dem[y2, x2]
-    delta_h = alt_b - alt_a # Positivo = subida, Negativo = bajada
-    
-    # 3. Modelado de velocidad adaptativa (m/s)
-    # Si hay pendiente pronunciada, el robot reduce su velocidad nominal (ej. 0.5 m/s base)
-    velocidad_base = 0.5 
-    pendiente = delta_h / max(distancia_metros, 0.1)
-    
-    if pendiente > 0.1: # Subida fuerte
-        velocidad_efectiva = velocidad_base * 0.6
-    elif pendiente < -0.1: # Bajada
-        velocidad_efectiva = velocidad_base * 0.8
-    else: # Terreno plano
-        velocidad_efectiva = velocidad_base
-        
-    tiempo_viaje = distancia_metros / velocidad_efectiva
-    
-    # 4. Modelado de gasto energético (Joules estimados)
-    k_base = 5.0  # Energía base por metro en plano (Joules/m)
-    k_pendiente = 25.0 # Energía extra por metro de desnivel positivo
-    
-energia_trayecto = (distancia_metros * k_base) + (max(0, delta_h) * k_pendiente)
-    
-    # 5. Tiempo estático de sensores (pH, humedad, temperatura) en segundos
-    tiempo_medicion_sensores = 15.0 
-    
-    costo_total_tiempo = tiempo_viaje + tiempo_medicion_sensores
-    
-    return {
-        "distancia_m": distancia_metros,
-        "delta_h_m": delta_h,
-        "tiempo_s": costo_total_tiempo,
-        "energia_j": energia_trayecto
-    }
-
-# --- Ejemplo de prueba con un segmento de la malla ---
-if __name__ == "__main__":
-    # Simulamos un fragmento de tu matriz DEM de Mapbox
-    matriz_ejemplo = np.full((50, 50), 1470.0)
-    matriz_ejemplo[25:, :] = 1472.0 # Simulamos una loma
-    
-    punto_actual = (10, 10)
-    punto_siguiente = (25, 20)
-    
-    costos = calcular_costo_tramo(punto_actual, punto_siguiente, matriz_ejemplo)
-    print("Métricas calculadas para el desplazamiento del robot:")
-    for k, v in costos.items():
-        print(f" - {k}: {v:.2f}")
-
-¿Qué otros parámetros deberías contemplar?
-Restricción de Ángulo de Volcadura (Seguridad Geométrica):
-Si la pendiente calculada entre dos celdas excede el ángulo máximo seguro del chasis de tu robot (por ejemplo, mayor a 25 grados o un Δh muy agresivo en poca distancia), el algoritmo de ruta debe marcar ese tramo como infactible (estado obstáculo) para evitar que el robot se volteé o patine.
-Historial de Idoneidad del Suelo como "Recompensa":
-Si usas un enfoque de Orienteering Problem, cada punto no solo tiene un costo de energía, sino un beneficio: las zonas donde la matriz DEM y los sensores previos muestran mayor variabilidad espacial otorgan más "puntos de ganancia" al robot por ser exploradas prioritariamente.
+# print(f"Temperatura estimada por el MCD: {climas['temperature']} K")
+# print(f"Presión estimada: {climas['pressure']} Pa")

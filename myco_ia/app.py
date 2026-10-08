@@ -12,6 +12,7 @@ if python_dir not in sys.path:
 
 from ph import get_soilgrids_data, get_soil_texture_soilgrids, classify_usda_texture
 from clima import get_current_weather, API_KEY as DEFAULT_OWM_KEY
+from clima_marte import estimate_mars_climate, calculate_mars_dem
 from ruteo_rovers import planificar_mision_muestreo
 
 
@@ -264,14 +265,40 @@ def calcular_terreno():
                     "description": "condiciones estimadas de respaldo"
                 }
         else:
-            # Marte (Jezero Crater - Viking / Curiosity / Perseverance baseline)
-            weather_data = {
-                "temperature_c": -62.0,
-                "humidity_percent": 1,
-                "rain_1h_mm": 0.0,
-                "has_rained": False,
-                "description": "Atmósfera marciana tenue (CO2, radiación UV)"
-            }
+            # Marte: Modelo del Mars Climate Database (LMD / MCD v6.2)
+            try:
+                mcd_res = estimate_mars_climate(
+                    lat=centroid["lat"],
+                    lon=centroid["lon"],
+                    alt_m=float(body.get("altura_sobre_suelo", 2.0)),
+                    ls_deg=float(body.get("ls_marte", 120.5)),
+                    local_hour=float(body.get("hora_local", 14.0))
+                )
+                weather_data = {
+                    "fuente": mcd_res["fuente"],
+                    "temperature_c": mcd_res["temperatura"]["aire_sensor_c"],
+                    "temperature_k": mcd_res["temperatura"]["aire_sensor_k"],
+                    "temperature_surface_c": mcd_res["temperatura"]["superficie_suelo_c"],
+                    "pressure_pa": mcd_res["presion_atmosferica"]["presion_pa"],
+                    "presion_kpa": mcd_res["presion_atmosferica"]["presion_kpa"],
+                    "humidity_percent": 0,
+                    "rain_1h_mm": 0.0,
+                    "has_rained": False,
+                    "uv_flux_w_m2": mcd_res["radiacion_y_atmosfera"]["flujo_uv_w_m2"],
+                    "uv_index": mcd_res["radiacion_y_atmosfera"]["indice_uv_equivalente"],
+                    "description": f"MCD LMD: {mcd_res['temperatura']['aire_sensor_c']}°C a 2m, Presión {mcd_res['presion_atmosferica']['presion_pa']} Pa",
+                    "detalles_mcd": mcd_res
+                }
+            except Exception as e:
+                weather_error = str(e)
+                weather_data = {
+                    "temperature_c": -62.0,
+                    "temperature_k": 211.15,
+                    "humidity_percent": 0,
+                    "rain_1h_mm": 0.0,
+                    "has_rained": False,
+                    "description": "Atmósfera marciana tenue (CO2, radiación UV)"
+                }
 
         # 3. Consultar datos de suelo SoilGrids para los puntos de muestreo
         soil_samples = []
@@ -396,6 +423,116 @@ def calcular_terreno():
         return jsonify({
             "success": False,
             "error": str(e)
+        }), 500
+
+
+@app.route("/api/clima-marte", methods=["POST", "GET"])
+def clima_marte():
+    """
+    Endpoint dedicado para consultar condiciones climatológicas en Marte
+    usando la parametrización de la base de datos Mars Climate Database (LMD / Jussieu):
+    https://www-mars.lmd.jussieu.fr (mejoras.txt).
+
+    Acepta tanto JSON (POST) como Query Params (GET):
+    - latitud: float (ej. 18.38)
+    - longitud: float (ej. 77.58)
+    - altura_sobre_suelo: float (ej. 2.0 m)
+    - ls_marte: float (ej. 120.5 grados)
+    - hora_local: float (ej. 14.0 LTST)
+    - poligono_coordenadas: opcional [[lng, lat], ...]
+    """
+    try:
+        if request.method == "POST":
+            data = request.get_json(force=True, silent=True) or {}
+        else:
+            data = request.args.to_dict()
+
+        # Determinar coordenadas
+        lat = None
+        lon = None
+
+        if "latitud" in data:
+            lat = float(data["latitud"])
+        elif "lat" in data:
+            lat = float(data["lat"])
+
+        if "longitud" in data:
+            lon = float(data["longitud"])
+        elif "lon" in data:
+            lon = float(data["lon"])
+        elif "lng" in data:
+            lon = float(data["lng"])
+
+        # Si pasaron poligono_coordenadas pero no latitud/longitud directa, calcular centroide
+        coords = data.get("poligono_coordenadas", [])
+        if (lat is None or lon is None) and coords and len(coords) >= 3:
+            _, centroid = calculate_polygon_grid(coords, resolution_meters=250)
+            lat = centroid["lat"]
+            lon = centroid["lon"]
+
+        if lat is None or lon is None:
+            return jsonify({
+                "success": False,
+                "error": "Debes proporcionar latitud y longitud o poligono_coordenadas de la parcela marciana."
+            }), 400
+
+        alt_m = float(data.get("altura_sobre_suelo", data.get("alt", 2.0)))
+        ls_deg = float(data.get("ls_marte", data.get("ls", 120.5)))
+        local_hour = float(data.get("hora_local", data.get("hour", 14.0)))
+
+        resultado = estimate_mars_climate(
+            lat=lat,
+            lon=lon,
+            alt_m=alt_m,
+            ls_deg=ls_deg,
+            local_hour=local_hour
+        )
+
+        return jsonify({
+            "success": True,
+            "data": resultado,
+            **resultado
+        }), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": f"Error calculando clima marciano MCD: {str(e)}"
+        }), 500
+
+
+@app.route("/api/dem-marte", methods=["POST"])
+def endpoint_dem_marte():
+    """
+    Endpoint para calcular automáticamente la elevación topográfica y la matriz DEM
+    de Marte con base en el datum oficial MOLA (Mars Orbiter Laser Altimeter).
+    Sustituye la necesidad de descargas manuales o configuración de teselas por parte del usuario.
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        coords = data.get("poligono_coordenadas")
+        if not coords or len(coords) < 3:
+            return jsonify({
+                "success": False,
+                "error": "Se requieren al menos 3 coordenadas en poligono_coordenadas."
+            }), 400
+
+        grid_size = int(data.get("grid_size", 16))
+        preset_alt = data.get("preset_mola_alt")
+        if preset_alt is not None:
+            preset_alt = float(preset_alt)
+
+        res = calculate_mars_dem(coords, grid_size=grid_size, preset_alt=preset_alt)
+        return jsonify(res), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": f"Error generando DEM marciano MOLA: {str(e)}"
         }), 500
 
 
