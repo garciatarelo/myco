@@ -100,6 +100,25 @@ class TerrenoController extends Controller
     }
 
     /**
+     * DELETE /api/terrenos/{id} - Eliminar un terreno y sus datos asociados
+     */
+    public function destroy(Terreno $terreno): JsonResponse
+    {
+        // Desvincular o limpiar dependencias asociadas
+        $terreno->mediciones()->delete();
+        $terreno->inyecciones()->delete();
+        $terreno->simulaciones()->delete();
+        $terreno->robots()->update(['terreno_id' => null]);
+        $terreno->estacionesBase()->update(['terreno_id' => null]);
+
+        $terreno->delete();
+
+        return response()->json([
+            'message' => 'Terreno y sus registros asociados eliminados con éxito.',
+        ]);
+    }
+
+    /**
      * GET /api/estaciones-base - Listar estaciones de recarga y abastecimiento
      */
     public function estacionesBase(): JsonResponse

@@ -14,8 +14,8 @@ from ph import get_soilgrids_data, get_soil_texture_soilgrids, classify_usda_tex
 from clima import get_current_weather, API_KEY as DEFAULT_OWM_KEY
 from clima_marte import estimate_mars_climate, calculate_mars_dem
 from ruteo_rovers import planificar_mision_muestreo
-
-
+from fase2_idoneidad import calcular_matriz_fase2
+from fase2_marte_sim import simular_laboratorio_marte
 
 app = Flask(__name__)
 CORS(app)
@@ -718,6 +718,126 @@ def endpoint_calcular_rutas_mediciones():
         import traceback
         traceback.print_exc()
         return jsonify({"success": False, "error": f"Error calculando rutas y clusters: {str(e)}"}), 500
+
+
+@app.route("/api/fase2-matriz-idoneidad", methods=["POST"])
+def endpoint_fase2_matriz_idoneidad():
+    """
+    Endpoint de Fase 2: Recibe mediciones sensoriales (humedad, temperatura, pH, sensor TCS34725),
+    matriz DEM topográfica y polígono del terreno para:
+    1. Normalizar variables [0, 1] (trapezoidal para humedad, directa para MO, inversa para compactación).
+    2. Aplicar modificadores ambientales de estrés (temperatura K-Means y pH TCS34725/SoilGrids).
+    3. Aplicar restricciones topográficas DEM (pendientes >25° como obstáculo).
+    4. Generar la matriz de idoneidad multicapa y seleccionar los puntos óptimos de inyección con distanciamiento radial.
+    5. Pre-simular el autómata celular fúngico para propagación inicial.
+    """
+    try:
+        data = request.get_json() or {}
+        puntos = data.get("puntos_medicion", [])
+        coords = data.get("poligono_coordenadas", [])
+        matriz_dem = data.get("matriz_dem")
+        grid_size = int(data.get("grid_size", 40))
+        entorno = data.get("entorno", "tierra")
+        cfu = float(data.get("cfu_concentration", 0.85))
+        num_inyecciones = int(data.get("num_inyecciones", 3))
+
+        resultado = calcular_matriz_fase2(
+            puntos_medicion=puntos,
+            poligono_coordenadas=coords,
+            matriz_dem=matriz_dem,
+            grid_size=grid_size,
+            entorno=entorno,
+            cfu_concentration=cfu,
+            num_inyecciones=num_inyecciones
+        )
+
+        # Si el entorno es Marte, enriquecer con la simulación del traje espacial y ciclo térmico
+        if str(entorno).lower() == "marte":
+            try:
+                sim_marte = simular_laboratorio_marte(
+                    poligono_coordenadas=coords,
+                    matriz_dem=matriz_dem,
+                    grid_size=grid_size,
+                    cfu_concentration=cfu,
+                    humectant_capacity=float(data.get("humectant_capacity", 120.0)),
+                    chitosan_shield=float(data.get("chitosan_shield", 0.85)),
+                    modo_tiempo=data.get("modo_tiempo", "ciclo_sol"),
+                    sol_hour=int(data.get("sol_hour", 14)),
+                    temperatura_manual=data.get("temperatura_manual"),
+                    total_steps=int(data.get("total_steps", 24)),
+                    num_inyecciones=num_inyecciones
+                )
+                resultado["simulacion_marte"] = sim_marte
+            except Exception as e_marte:
+                print(f"Aviso: no se pudo acoplar simulacion_marte en Fase 2: {e_marte}")
+
+        return jsonify(resultado), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"Error calculando matriz de idoneidad Fase 2: {str(e)}"}), 500
+
+
+@app.route("/api/marte-simulacion-traje", methods=["POST"])
+def endpoint_marte_simulacion_traje():
+    """
+    Endpoint dedicado del Laboratorio de Astrobiología Marciana:
+    Simula la dinámica de la biocápsula de hidrogel ("Traje Espacial" de Alginato + Glicerol + Quitosano),
+    la difusión de fluidos de Fick a 6.1 hPa, el ciclo día/noche de Marte con congelamiento/dormancia,
+    y la vía fúngica de quelación de hierro y neutralización de percloratos por sideróforos.
+    """
+    try:
+        data = request.get_json() or {}
+        coords = data.get("poligono_coordenadas", [])
+        matriz_dem = data.get("matriz_dem")
+        grid_size = int(data.get("grid_size", 40))
+        cfu = float(data.get("cfu_concentration", 0.85))
+        humectant = float(data.get("humectant_capacity", 120.0))
+        chitosan = float(data.get("chitosan_shield", 0.85))
+        modo_tiempo = data.get("modo_tiempo", "ciclo_sol") # "ciclo_sol" | "fijo_manual"
+        sol_hour = int(data.get("sol_hour", 14))
+        temp_manual = data.get("temperatura_manual")
+        if temp_manual is not None:
+            temp_manual = float(temp_manual)
+            
+        temp_mean = float(data.get("temp_mean", -25.0))
+        temp_amp = float(data.get("temp_amp", 40.0))
+        perchlorates_factor = float(data.get("perchlorates_factor", 1.0))
+        iron_oxides_factor = float(data.get("iron_oxides_factor", 1.0))
+        total_steps = int(data.get("total_steps", 24))
+        num_inyecciones = int(data.get("num_inyecciones", 2))
+        puntos_inyeccion = data.get("puntos_inyeccion")
+        bake_flag = bool(data.get("bake_habitat", False) or data.get("bake_habitat_flag", False))
+        target_density = float(data.get("target_density", 0.70))
+
+        resultado = simular_laboratorio_marte(
+            poligono_coordenadas=coords,
+            matriz_dem=matriz_dem,
+            grid_size=grid_size,
+            cfu_concentration=cfu,
+            humectant_capacity=humectant,
+            chitosan_shield=chitosan,
+            modo_tiempo=modo_tiempo,
+            sol_hour=sol_hour,
+            temperatura_manual=temp_manual,
+            temp_mean=temp_mean,
+            temp_amp=temp_amp,
+            perchlorates_factor=perchlorates_factor,
+            iron_oxides_factor=iron_oxides_factor,
+            total_steps=total_steps,
+            num_inyecciones=num_inyecciones,
+            puntos_inyeccion_custom=puntos_inyeccion,
+            bake_habitat_flag=bake_flag,
+            target_density=target_density
+        )
+
+        return jsonify(resultado), 200
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": f"Error en simulación del traje espacial marciano: {str(e)}"}), 500
 
 
 if __name__ == "__main__":

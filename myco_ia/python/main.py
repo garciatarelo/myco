@@ -4,17 +4,22 @@ import csv
 from normalizer import normalize_soil_parameters, generate_multi_sensor_terrain
 
 class FungalSoilMeasurementCA:
-    def __init__(self, soil_measurements: np.ndarray, seed_pos=None):
+    def __init__(self, soil_measurements: np.ndarray, seed_pos=None, cfu_concentration=0.5):
         """
         Args:
             soil_measurements (np.ndarray): Matriz 2D (height, width) con valores de 0.0 a 1.0
                                             que representan la idoneidad del terreno (nutrientes, humedad, compactación).
             seed_pos (tuple): Coordenadas (x, y) donde el robot inyecta la cápsula de micelio.
+            cfu_concentration (float): Concentración de UFC/g normalizada (0.1 a 1.0).
+                                       Representa la densidad del inóculo biológico en la cápsula.
         """
         self.height, self.width = soil_measurements.shape
         
         # Matriz de recursos/idoneidad basada en mediciones normalizadas
         self.nutrients = np.clip(soil_measurements, 0.0, 1.0)
+        
+        # Parámetro de UFC guardado como "vigor" del micelio (0.1 a 1.0)
+        self.cfu_vigor = float(np.clip(cfu_concentration, 0.1, 1.0))
         
         # Estados de la celosía:
         # 0: Suelo virgen / no explorado
@@ -36,9 +41,31 @@ class FungalSoilMeasurementCA:
         else:
             self.start_x, self.start_y = seed_pos
             
-        # Asegurar que el punto de inicio sea una punta activa válida
-        self.grid[self.start_y, self.start_x] = 2
-        self.nutrients[self.start_y, self.start_x] = 0.0
+        # Inoculación inicial con radio derivado de la densidad de UFC/g
+        self.inoculate((self.start_x, self.start_y), self.cfu_vigor)
+
+    def inoculate(self, seed_pos, cfu_concentration=None):
+        """
+        Inocula una biocápsula en 'seed_pos'. A mayor concentración de UFC/g,
+        mayor es el radio de colonización inicial (radio 0 a 2, hasta ~13 celdas).
+        """
+        if cfu_concentration is not None:
+            self.cfu_vigor = float(np.clip(cfu_concentration, 0.1, 1.0))
+            
+        sx, sy = seed_pos
+        self.start_x, self.start_y = sx, sy
+        
+        # Radio de 0 (1 celda) hasta 2 (área circular ~13 celdas) según vigor
+        initial_radius = int(np.floor(self.cfu_vigor * 2.5))
+        
+        for dy in range(-initial_radius, initial_radius + 1):
+            for dx in range(-initial_radius, initial_radius + 1):
+                if dx * dx + dy * dy <= initial_radius * initial_radius:
+                    ny, nx = sy + dy, sx + dx
+                    if 0 <= ny < self.height and 0 <= nx < self.width:
+                        if self.grid[ny, nx] != 4:  # Respetar obstáculos/rocas
+                            self.grid[ny, nx] = 2   # Punta activa
+                            self.nutrients[ny, nx] = 0.0 # Consume el punto de partida
 
     def step(self):
         new_grid = self.grid.copy()
@@ -78,11 +105,24 @@ class FungalSoilMeasurementCA:
                 else:
                     probs = np.ones(len(valid_neighbors)) / len(valid_neighbors)
                 
-                # Ramificación estocástica condicionada por la calidad del terreno medido
-                # Si el terreno medido es excelente (>0.7), mayor probabilidad de doble ramificación
                 local_quality = np.mean(nutrient_weights)
-                branch_prob = 0.4 if local_quality > 0.5 else 0.15
-                num_branches = 2 if np.random.rand() < branch_prob else 1
+                
+                # 2. IMPACTO DE LAS UFC EN EL CRECIMIENTO Y RAMIFICACIÓN
+                # La concentración de UFC aumenta la probabilidad base de ramificación
+                base_branch_prob = 0.4 if local_quality > 0.5 else 0.15
+                
+                # Modificador de vigor: aumenta la ramificación hasta un 50% extra si las UFC son altas
+                branch_prob = min(1.0, base_branch_prob * (1.0 + (self.cfu_vigor * 0.5)))
+                
+                # Determinar cantidad de ramas a generar
+                if np.random.rand() < branch_prob:
+                    # Si el vigor por UFC es muy alto (>=0.7), posibilidad de triple ramificación
+                    if self.cfu_vigor >= 0.7 and np.random.rand() < (self.cfu_vigor * 0.3):
+                        num_branches = 3
+                    else:
+                        num_branches = 2
+                else:
+                    num_branches = 1
                 
                 chosen_indices = np.random.choice(
                     len(valid_neighbors), 
@@ -115,8 +155,16 @@ if __name__ == "__main__":
     terrain_map, raw_sensors = generate_multi_sensor_terrain(grid_size)
     robot_injection_point = (10, 10) # Coordenada (x, y) donde el robot depositó la cápsula
     
+    # Parámetro biológico: concentración de UFC/g normalizada (0.1 a 1.0)
+    # Por ejemplo, cápsula de alta densidad con 85,000 UFC/g -> 0.85
+    cfu_normalizado = 0.85
+    
     steps = 80
-    sim = FungalSoilMeasurementCA(soil_measurements=terrain_map, seed_pos=robot_injection_point)
+    sim = FungalSoilMeasurementCA(
+        soil_measurements=terrain_map, 
+        seed_pos=robot_injection_point,
+        cfu_concentration=cfu_normalizado
+    )
 
     # Exportar datos a CSV
     with open('simulacion_micelio.csv', 'w', newline='') as f:

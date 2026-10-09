@@ -350,6 +350,12 @@ export const apiService = {
     });
   },
 
+  async eliminarTerreno(id) {
+    return fetchJson(`${API_BASE_URL}/terrenos/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
   async getEstacionesBase() {
     return fetchJson(`${API_BASE_URL}/estaciones-base`);
   },
@@ -446,7 +452,7 @@ export const apiService = {
 
   // ─── SERVICIO FLASK MYCO IA (CONDICIONES DE TERRENO Y AUTÓMATA) ───
   async calcularCondicionesTerreno(datos) {
-    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
+    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5000';
     const response = await fetch(`${flaskUrl}/api/calcular-terreno`, {
       method: 'POST',
       headers: {
@@ -526,6 +532,40 @@ export const apiService = {
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
       throw new Error(errData.error || `Error ${response.status} al consultar DEM de Marte`);
+    }
+    return response.json();
+  },
+
+  async calcularFase2MatrizIdoneidad(datos) {
+    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
+    const response = await fetch(`${flaskUrl}/api/fase2-matriz-idoneidad`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(datos),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Error ${response.status} al calcular matriz de idoneidad Fase 2`);
+    }
+    return response.json();
+  },
+
+  async simularLaboratorioMarte(datos) {
+    const flaskUrl = import.meta.env.VITE_MYCO_IA_URL || 'http://127.0.0.1:5001';
+    const response = await fetch(`${flaskUrl}/api/marte-simulacion-traje`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(datos),
+    });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `Error ${response.status} en simulación de laboratorio marciano`);
     }
     return response.json();
   },

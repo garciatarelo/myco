@@ -10,6 +10,8 @@ export default function TerrenosView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showMissionModal, setShowMissionModal] = useState(false);
+  const [terrenoToDelete, setTerrenoToDelete] = useState(null);
+  const [deletingTerreno, setDeletingTerreno] = useState(false);
 
   useEffect(() => {
     cargarDatos();
@@ -29,6 +31,20 @@ export default function TerrenosView() {
       setError('Error al cargar terrenos y estaciones: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function confirmarEliminarTerreno() {
+    if (!terrenoToDelete) return;
+    setDeletingTerreno(true);
+    try {
+      await apiService.eliminarTerreno(terrenoToDelete.id);
+      setTerrenos((prev) => prev.filter((t) => t.id !== terrenoToDelete.id));
+      setTerrenoToDelete(null);
+    } catch (err) {
+      setError('Error al eliminar el terreno: ' + err.message);
+    } finally {
+      setDeletingTerreno(false);
     }
   }
 
@@ -182,14 +198,21 @@ export default function TerrenosView() {
                 )}
               </div>
 
-              {/* Botón Primario: Abrir Misión & Mapa */}
-              <div className="pt-3 border-t border-white/10">
+              {/* Acciones: Abrir Misión & Eliminar Terreno */}
+              <div className="pt-3 border-t border-white/10 flex items-center gap-2">
                 <button
                   onClick={() => navigate(`/mision/${t.id}`)}
-                  className="w-full py-2.5 rounded-xl bg-[#ff4500] hover:bg-[#ff4500]/90 text-white font-mono font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#ff4500]/20 transition-all"
+                  className="flex-1 py-2.5 rounded-xl bg-[#ff4500] hover:bg-[#ff4500]/90 text-white font-mono font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#ff4500]/20 transition-all cursor-pointer"
                 >
                   <i className="fa-solid fa-satellite-dish text-xs" />
-                  <span>Abrir Misión & Mapa de este Terreno</span>
+                  <span>Abrir Misión & Mapa</span>
+                </button>
+                <button
+                  onClick={() => setTerrenoToDelete(t)}
+                  title="Eliminar este terreno y todos sus datos"
+                  className="p-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/30 transition-all cursor-pointer flex items-center justify-center shrink-0"
+                >
+                  <i className="fa-solid fa-trash-can text-sm" />
                 </button>
               </div>
             </div>
@@ -309,6 +332,92 @@ export default function TerrenosView() {
                 className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors"
               >
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmación para Eliminar Terreno */}
+      {terrenoToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="bg-[#161616] border border-red-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-red-950/50 font-mono">
+            {/* Header del Modal */}
+            <div className="p-5 border-b border-[#262626] flex items-center justify-between bg-gradient-to-r from-red-950/40 via-[#1a1a1a] to-black/80">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400">
+                  <i className="fa-solid fa-triangle-exclamation text-lg" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-white tracking-wide">
+                    Eliminar Terreno & Parcela
+                  </h2>
+                  <p className="text-[0.7rem] text-red-400">
+                    Acción destructiva e irreversible
+                  </p>
+                </div>
+              </div>
+              <button
+                disabled={deletingTerreno}
+                onClick={() => setTerrenoToDelete(null)}
+                className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <i className="fa-solid fa-xmark text-sm" />
+              </button>
+            </div>
+
+            {/* Contenido / Advertencia */}
+            <div className="p-6 space-y-4 bg-[#111111] text-xs">
+              <p className="text-gray-300 leading-relaxed">
+                ¿Estás completamente seguro de que deseas eliminar permanentemente el terreno{' '}
+                <strong className="text-white font-bold bg-white/10 px-2 py-0.5 rounded border border-white/10">
+                  {terrenoToDelete.nombre}
+                </strong>{' '}
+                (Sector #{terrenoToDelete.id})?
+              </p>
+
+              <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 space-y-2 text-[0.72rem] text-gray-300">
+                <div className="font-bold text-red-400 flex items-center gap-1.5">
+                  <i className="fa-solid fa-fire text-xs" />
+                  <span>Se eliminarán todos los datos vinculados:</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-gray-400">
+                  <li>Polígono georreferenciado y mapa de elevación DEM.</li>
+                  <li>Historial de mediciones de suelo (pH, humedad, reflectancia).</li>
+                  <li>Registros de inyecciones de cápsulas de biopolímero.</li>
+                  <li>Simulaciones y gemelos digitales ejecutados en este sector.</li>
+                  <li>Los robots y estaciones base asignados quedarán liberados.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer / Acciones */}
+            <div className="p-4 bg-black/80 border-t border-[#262626] flex items-center justify-end gap-3 text-xs">
+              <button
+                type="button"
+                disabled={deletingTerreno}
+                onClick={() => setTerrenoToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 font-bold border border-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingTerreno}
+                onClick={confirmarEliminarTerreno}
+                className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold flex items-center gap-2 shadow-lg shadow-red-600/30 transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {deletingTerreno ? (
+                  <>
+                    <i className="fa-solid fa-spinner animate-spin text-xs" />
+                    <span>Eliminando...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-trash-can text-xs" />
+                    <span>Sí, Eliminar Todo</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

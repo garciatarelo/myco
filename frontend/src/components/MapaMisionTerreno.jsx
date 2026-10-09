@@ -87,6 +87,7 @@ export function MapaMisionTerreno({
   onToggleExpand = null,
   rutasRovers = null,
   clustersMuestreo = null,
+  onMapClick = null,
 }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -419,6 +420,12 @@ export function MapaMisionTerreno({
         lng: e.lngLat.lng.toFixed(5),
         lat: e.lngLat.lat.toFixed(5),
       });
+    });
+
+    map.on('click', (e) => {
+      if (onMapClick) {
+        onMapClick(e);
+      }
     });
 
     mapRef.current = map;

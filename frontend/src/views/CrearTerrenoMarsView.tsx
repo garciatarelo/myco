@@ -479,6 +479,36 @@ export default function CrearTerrenoMarsView() {
       polygonLayerRef.current = polygon;
     }
 
+    // Calcular superficie (m2) y centroide automáticamente si hay al menos 3 vértices
+    if (vertices.length >= 3) {
+      try {
+        const closed = [...vertices, vertices[0]];
+        const polyFeature = turf.polygon([closed]);
+        const areaM2 = Math.round(turf.area(polyFeature));
+        const centerCoord = turf.center(polyFeature).geometry.coordinates;
+
+        setFormData((prev) => {
+          const newLng = Number(centerCoord[0].toFixed(5));
+          const newLat = Number(centerCoord[1].toFixed(5));
+          if (
+            prev.dimensiones_m2 === areaM2 &&
+            prev.longitud_central === newLng &&
+            prev.latitud_central === newLat
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            dimensiones_m2: areaM2,
+            longitud_central: newLng,
+            latitud_central: newLat,
+          };
+        });
+      } catch (err) {
+        console.warn('Error calculando métricas Turf para polígono marciano:', err);
+      }
+    }
+
     // Dibujar marcadores circulares numerados en cada vértice
     vertices.forEach(([lng, lat], index) => {
       const vertexIcon = L.divIcon({
@@ -1232,6 +1262,8 @@ export default function CrearTerrenoMarsView() {
           area_m2: formData.dimensiones_m2,
           datum: 'Mars MOLA Areoid',
         },
+        rutas_rovers: routesMissionData?.rutas_rovers || null,
+        clusters_muestreo: routesMissionData?.clusters || null,
       };
 
       const creado = await apiService.crearTerreno(payload);
